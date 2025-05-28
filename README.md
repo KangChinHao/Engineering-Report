@@ -5,5 +5,4 @@ Engineering-Report
 
 ### About
 
-This is your project's README.md file. It helps users understand what your
-project does, how to use it and anything else they may need to know.
+以node-red flowfuse dashboard (dashboard 2.0)為主的工程報表系統的開發。
