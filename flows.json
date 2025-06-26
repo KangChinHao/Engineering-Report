@@ -2,7 +2,31 @@
     {
         "id": "87a35e934b9e3dd9",
         "type": "tab",
-        "label": "流程1",
+        "label": "手動設定專案",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "55d30d31a5f17410",
+        "type": "tab",
+        "label": "匯入檔案",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "f5b5c58865740524",
+        "type": "tab",
+        "label": "手動填寫每日報表",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "c9cfaee5a59b0909",
+        "type": "tab",
+        "label": "查看報表",
         "disabled": false,
         "info": "",
         "env": []
@@ -36,7 +60,7 @@
     {
         "id": "cd9d63481420f626",
         "type": "group",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "name": "填寫報表",
         "style": {
             "stroke": "#ffC000",
@@ -75,9 +99,39 @@
             "13ac78999b06fa11"
         ],
         "x": 54,
-        "y": 539,
+        "y": 59,
         "w": 1562,
         "h": 322
+    },
+    {
+        "id": "fd8fb35107057710",
+        "type": "group",
+        "z": "c9cfaee5a59b0909",
+        "name": "查看報表",
+        "style": {
+            "stroke": "#ffC000",
+            "fill": "#ffffbf",
+            "label": true,
+            "color": "#ffC000"
+        },
+        "nodes": [
+            "124c7b17e65b8ec5",
+            "4919fbca6f85b9a5",
+            "c74bcc5d27c9f1a2",
+            "efe9475147a9d1a4",
+            "a017cd6518d796e0",
+            "8828227c20361698",
+            "d40a73f5251d7b18",
+            "8f643137db211451",
+            "00663ff20eb3567b",
+            "c2b2bfefb22e1afd",
+            "35c4400e51bc2f42",
+            "846be4bec50e0ed7"
+        ],
+        "x": 54,
+        "y": 59,
+        "w": 1152,
+        "h": 122
     },
     {
         "id": "0b56277067a47c7e",
@@ -709,57 +763,11 @@
         "wires": []
     },
     {
-        "id": "3ad0faa4bf2148dd",
-        "type": "function",
-        "z": "87a35e934b9e3dd9",
-        "name": "解析excel",
-        "func": "const xlsx = global.get('xlsx');\nconst workbook = xlsx.read(msg.payload, { type: 'buffer' });\nconst sheetName = workbook.SheetNames[1];\nconst sheet = workbook.Sheets[sheetName];\nconst rawData = xlsx.utils.sheet_to_json(sheet, { defval: '' });\n\nconst result = [];\nlet currentMain = null;\nlet currentSection = null;\nlet currentItem = null;\nlet currentSubItem = null;\n\nfor (let row of rawData) {\n    const code = (row[\"OOOO\"] || '').toString().trim();\n    const desc = (row[\"__EMPTY\"] || '').toString().trim();\n\n    // 大項（壹、貳…）\n    if (code.match(/^[壹貳參肆伍陸柒捌玖拾]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n        if (currentMain) result.push(currentMain);\n\n        currentMain = { type: 'main', item: code, description: desc, children: [] };\n        currentSection = null;\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 分項（一、二…）\n    if (code.match(/^[一二三四五六七八九十]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n    \n        currentSection = {\n            type: 'section',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 細項（1、2…）\n    if (code.match(/^\\d+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n\n        currentItem = {\n            type: 'item',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentSubItem = null;\n        continue;\n    }\n\n    // 子細項（(1)、(2)…）\n    if (code.match(/^\\(\\d+\\)$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n\n        currentSubItem = {\n            type: 'subitem',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || ''\n        };\n        continue;\n    }\n\n    // 補充說明/備註\n    if (currentSubItem) {\n        if (row[\"__EMPTY\"]) currentSubItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentSubItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    } else if (currentItem) {\n        if (row[\"__EMPTY\"]) currentItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    }\n}\n\n// 收尾：處理最後一個subitem、item、section、main\nif (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\nif (currentItem && currentSection) currentSection.children.push(currentItem);\n\n// 如果分項本身有單價等資料，但底下沒有細項，要幫它補detail\nif (currentSection) {\n    if (\n        (!currentSection.children || !currentSection.children.length) &&\n        (currentSection.unit || currentSection.quantity || currentSection.unit_price || currentSection.total)\n    ) {\n        currentSection.children = [{\n            type: 'detail',\n            item: currentSection.item,\n            description: currentSection.description,\n            unit: currentSection.unit,\n            quantity: currentSection.quantity,\n            unit_price: currentSection.unit_price,\n            total: currentSection.total,\n            remark: currentSection.remark\n        }];\n        // 清空分項自己的資料\n        currentSection.unit = '';\n        currentSection.quantity = '';\n        currentSection.unit_price = '';\n        currentSection.total = '';\n        currentSection.remark = '';\n    }\n}\n\n// 一定要記得最後一個 main 也要 push!\nif (currentSection && currentMain) currentMain.children.push(currentSection);\nif (currentMain) result.push(currentMain);\n\nmsg.payload = result;\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 280,
-        "y": 480,
-        "wires": [
-            [
-                "46da6534a6042da4"
-            ]
-        ]
-    },
-    {
-        "id": "494491c083dd8802",
-        "type": "ui-template",
-        "z": "87a35e934b9e3dd9",
-        "group": "03d84dbe2439b847",
-        "page": "",
-        "ui": "",
-        "name": "匯入檔案",
-        "order": 1,
-        "width": 0,
-        "height": 0,
-        "head": "",
-        "format": "<template>\n    <v-container class=\"d-flex flex-column align-center\">\n        <v-sheet width=\"100%\" class=\"mb-6 py-6 px-2 rounded-xl elevation-2 bg-primary-lighten-5\">\n            <div class=\"text-h4 font-weight-bold text-primary text-center letter-spacing-widest\">\n                匯入契約書\n            </div>\n        </v-sheet>\n        <v-row class=\"w-75 mb-4\" dense>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"projectName\" label=\"工程名稱\" outlined dense required />\n            </v-col>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"contractor\" label=\"承攬廠商名稱\" outlined dense required />\n            </v-col>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"startDate\" label=\"開工日期\" type=\"date\" outlined dense required />\n            </v-col>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"endDate\" label=\"完工日期\" type=\"date\" outlined dense required />\n            </v-col>\n        </v-row>\n        <v-file-input class=\"w-75\" v-model=\"excelFile\" accept=\".xlsx,.xls\" label=\"上傳 Excel 報表\" prepend-icon=\"mdi-upload\"\n            outlined dense></v-file-input>\n        <v-btn color=\"primary\" class=\"mt-3\" @click=\"uploadToBackend\">上傳並解析</v-btn>\n    </v-container>\n</template>\n\n<script>\n    export default {\n        data() {\n            return {\n                projectName: '',\n                contractor: '',\n                startDate: '', // 直接綁 YYYY-MM-DD 字串\n                endDate: '',\n                excelFile: null,\n            };\n        },\n        methods: {\n            uploadToBackend() {\n                if (!this.excelFile || !this.projectName || !this.contractor || !this.startDate || !this.endDate) {\n                    alert(\"請完整填寫所有欄位並選擇檔案\");\n                    return;\n                }\n                const reader = new FileReader();\n                reader.onload = (e) => {\n                    const arrayBuffer = e.target.result;\n                    const uint8Array = new Uint8Array(arrayBuffer);\n\n                    this.send({\n                        payload: uint8Array,\n                        filename: this.excelFile.name,\n                        topic: \"upload-excel\",\n                        projectName: this.projectName,\n                        contractor: this.contractor,\n                        startDate: this.startDate,\n                        endDate: this.endDate\n                    });\n                };\n                reader.readAsArrayBuffer(this.excelFile);\n            }\n        }\n    };\n</script>",
-        "storeOutMessages": true,
-        "passthru": true,
-        "resendOnRefresh": true,
-        "templateScope": "local",
-        "className": "",
-        "x": 140,
-        "y": 480,
-        "wires": [
-            [
-                "3ad0faa4bf2148dd"
-            ]
-        ]
-    },
-    {
         "id": "ee5806953bb73e80",
         "type": "debug",
         "z": "87a35e934b9e3dd9",
         "g": "5cf1ae2a1e3b8952",
-        "name": "debug 5",
+        "name": "debug 2",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -777,7 +785,7 @@
         "type": "debug",
         "z": "87a35e934b9e3dd9",
         "g": "5cf1ae2a1e3b8952",
-        "name": "debug 4",
+        "name": "debug 1",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -823,7 +831,7 @@
         "type": "debug",
         "z": "87a35e934b9e3dd9",
         "g": "5cf1ae2a1e3b8952",
-        "name": "debug 6",
+        "name": "debug 3",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -922,156 +930,57 @@
         ]
     },
     {
-        "id": "124c7b17e65b8ec5",
-        "type": "ui-control",
-        "z": "87a35e934b9e3dd9",
-        "name": "",
-        "ui": "0b56277067a47c7e",
-        "events": "all",
-        "x": 120,
-        "y": 960,
-        "wires": [
-            [
-                "c74bcc5d27c9f1a2"
-            ]
-        ]
-    },
-    {
-        "id": "4919fbca6f85b9a5",
-        "type": "debug",
-        "z": "87a35e934b9e3dd9",
-        "name": "14",
-        "active": false,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "true",
-        "targetType": "full",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 530,
-        "y": 1000,
-        "wires": []
-    },
-    {
-        "id": "c74bcc5d27c9f1a2",
+        "id": "3ad0faa4bf2148dd",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
-        "name": "查詢",
-        "func": "msg.topic = \"SELECT \\\n   dr.id AS report_id, \\\n   dr.project_id, \\\n   p.name AS project_name, \\\n   p.contractor AS contractor, \\\n   CAST(DATE_FORMAT(p.start_date, '%Y-%m-%d') AS CHAR) AS start_date,\\\n   CAST(DATE_FORMAT(p.end_date, '%Y-%m-%d') AS CHAR) AS end_date,\\\n   CAST(DATE_FORMAT(dr.report_date, '%Y-%m-%d') AS CHAR) AS report_date,\\\n   dr.weekday, \\\n   dr.weather_morning, \\\n   dr.weather_afternoon, \\\n   dr.planned_progress, \\\n   dr.actual_progress, \\\n   dr.other_notes, \\\n   dr.test_records, \\\n   dr.\tnotify_subcontractors, \\\n   dr.\timportant_notes, \\\n \\\n   cpl.construction_item_id, \\\n   ci.name AS item_name, \\\n   ci.unit, \\\n   ci.contract_quantity, \\\n   ci.is_special, \\\n   cpl.quantity_today, \\\n   cpl.quantity_total, \\\n   cpl.remark \\\n \\\nFROM daily_reports dr \\\nLEFT JOIN projects p ON dr.project_id = p.id \\\nLEFT JOIN construction_progress_logs cpl ON dr.id = cpl.report_id \\\nLEFT JOIN construction_items ci ON cpl.construction_item_id = ci.id \\\n \\\nORDER BY dr.report_date DESC, dr.id DESC;\";\nreturn msg;",
+        "z": "55d30d31a5f17410",
+        "name": "解析excel",
+        "func": "const xlsx = global.get('xlsx');\nconst workbook = xlsx.read(msg.payload, { type: 'buffer' });\nconst sheetName = workbook.SheetNames[1];\nconst sheet = workbook.Sheets[sheetName];\nconst rawData = xlsx.utils.sheet_to_json(sheet, { defval: '' });\n\nconst result = [];\nlet currentMain = null;\nlet currentSection = null;\nlet currentItem = null;\nlet currentSubItem = null;\n\nfor (let row of rawData) {\n    const code = (row[\"OOOO\"] || '').toString().trim();\n    const desc = (row[\"__EMPTY\"] || '').toString().trim();\n\n    // 大項（壹、貳…）\n    if (code.match(/^[壹貳參肆伍陸柒捌玖拾]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n        if (currentMain) result.push(currentMain);\n\n        currentMain = { type: 'main', item: code, description: desc, children: [] };\n        currentSection = null;\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 分項（一、二…）\n    if (code.match(/^[一二三四五六七八九十]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n    \n        currentSection = {\n            type: 'section',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 細項（1、2…）\n    if (code.match(/^\\d+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n\n        currentItem = {\n            type: 'item',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentSubItem = null;\n        continue;\n    }\n\n    // 子細項（(1)、(2)…）\n    if (code.match(/^\\(\\d+\\)$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n\n        currentSubItem = {\n            type: 'subitem',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || ''\n        };\n        continue;\n    }\n\n    // 補充說明/備註\n    if (currentSubItem) {\n        if (row[\"__EMPTY\"]) currentSubItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentSubItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    } else if (currentItem) {\n        if (row[\"__EMPTY\"]) currentItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    }\n}\n\n// 收尾：處理最後一個subitem、item、section、main\nif (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\nif (currentItem && currentSection) currentSection.children.push(currentItem);\n\n// 如果分項本身有單價等資料，但底下沒有細項，要幫它補detail\nif (currentSection) {\n    if (\n        (!currentSection.children || !currentSection.children.length) &&\n        (currentSection.unit || currentSection.quantity || currentSection.unit_price || currentSection.total)\n    ) {\n        currentSection.children = [{\n            type: 'detail',\n            item: currentSection.item,\n            description: currentSection.description,\n            unit: currentSection.unit,\n            quantity: currentSection.quantity,\n            unit_price: currentSection.unit_price,\n            total: currentSection.total,\n            remark: currentSection.remark\n        }];\n        // 清空分項自己的資料\n        currentSection.unit = '';\n        currentSection.quantity = '';\n        currentSection.unit_price = '';\n        currentSection.total = '';\n        currentSection.remark = '';\n    }\n}\n\n// 一定要記得最後一個 main 也要 push!\nif (currentSection && currentMain) currentMain.children.push(currentSection);\nif (currentMain) result.push(currentMain);\n\nmsg.payload = result;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 250,
-        "y": 960,
+        "x": 300,
+        "y": 80,
         "wires": [
             [
-                "efe9475147a9d1a4"
+                "0112b44b77f187c3"
             ]
         ]
     },
     {
-        "id": "efe9475147a9d1a4",
-        "type": "mysql",
-        "z": "87a35e934b9e3dd9",
-        "mydb": "0b4c50e32bf6a5fa",
-        "name": "",
-        "x": 390,
-        "y": 960,
-        "wires": [
-            [
-                "d40a73f5251d7b18",
-                "4919fbca6f85b9a5"
-            ]
-        ]
-    },
-    {
-        "id": "a017cd6518d796e0",
-        "type": "inject",
-        "z": "87a35e934b9e3dd9",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "name",
-                "v": "填寫每日報表",
-                "vt": "str"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "0.5",
-        "topic": "",
-        "payload": "",
-        "payloadType": "date",
-        "x": 120,
-        "y": 1000,
-        "wires": [
-            [
-                "c74bcc5d27c9f1a2"
-            ]
-        ]
-    },
-    {
-        "id": "8828227c20361698",
+        "id": "494491c083dd8802",
         "type": "ui-template",
-        "z": "87a35e934b9e3dd9",
-        "group": "d09b4e05ca8fe220",
+        "z": "55d30d31a5f17410",
+        "group": "03d84dbe2439b847",
         "page": "",
         "ui": "",
-        "name": "查看報表",
+        "name": "匯入檔案",
         "order": 1,
         "width": 0,
         "height": 0,
         "head": "",
-        "format": "<template>\n    <v-container class=\"d-flex justify-center\">\n        <v-card elevation=\"3\" width=\"100%\">\n            <v-card-title class=\"text-h6 font-weight-bold\">\n                每日報表清單\n            </v-card-title>\n            <v-card-text>\n                <v-row>\n                    <v-col v-for=\"(reportItem, i) in alreadySaveFrom\" :key=\"i\" cols=\"12\" sm=\"6\" md=\"4\">\n                        <v-card class=\"pa-3 hoverable\" elevation=\"2\" style=\"cursor: pointer; border-radius: 12px;\"\n                            @click=\"openDetailDialog(reportItem)\">\n                            <v-card-title class=\"text-subtitle-1 font-weight-bold\">\n                                {{ reportItem.projectName }}\n                            </v-card-title>\n\n                            <v-card-subtitle class=\"text-body-2 grey--text\">\n                                {{ formatDate(reportItem.reportDate) }}\n                            </v-card-subtitle>\n\n                            <v-card-text class=\"text-body-2\">\n                                材料紀錄數量：{{ reportItem.reports.length }}\n                            </v-card-text>\n                        </v-card>\n                    </v-col>\n                </v-row>\n            </v-card-text>\n        </v-card>\n\n\n        <!-- 詳細對話框 -->\n        <v-dialog v-model=\"detailDialog\" max-width=\"1000\">\n            <v-card>\n                <v-card-title class=\"text-h6 font-weight-bold\">\n                    每日報表詳細資訊\n                </v-card-title>\n\n                <v-card-text v-if=\"detailItem\">\n                    <!--基本資訊 -->\n                    <h3 class=\"section-title\">基本資訊</h3>\n                    <v-row dense>\n                        <v-col cols=\"12\" sm=\"6\"><strong>工程名稱：</strong>{{ detailItem.projectName }}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>承接公司名稱：</strong>{{ detailItem.contractor }}</v-col>\n                        <v-col cols=\"12\" sm=\"12\"><strong>日期：</strong>{{ formatDate(detailItem.reportDate) + \" \" +\n                            detailItem.weekday}}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>開工日期：</strong>{{ formatDate(detailItem.start_date)}}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>完工日期：</strong>{{ formatDate(detailItem.end_date)}}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>上午天氣：</strong>{{ detailItem.weather_morning }}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>下午天氣：</strong>{{ detailItem.weather_afternoon }}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>預定進度：</strong>{{ detailItem.planned_progress }}%</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>實際進度：</strong>{{ detailItem.actual_progress }}%</v-col>\n                    </v-row>\n\n                    <!--材料使用清單 -->\n                    <h3 class=\"section-title mt-6\">材料使用清單</h3>\n                    <v-data-table v-if=\"detailItem && Array.isArray(detailItem.reports) && detailItem.reports.length\"\n                        :headers=\"tableHeaders\" :items=\"detailItem.reports\" :items-per-page=\"100\" class=\"elevation-1\"\n                        density=\"compact\" hide-default-footer>\n                        <template #item.remark=\"{ item }\">\n                            {{ item.remark || '' }}\n                        </template>\n                    </v-data-table>\n                    <div v-else class=\"text-grey\">尚無材料使用資料。</div>\n\n                    <!-- 其他備註事項 -->\n                    <h3 class=\"section-title mt-6\">其他備註事項</h3>\n                    <v-row dense>\n                        <v-col cols=\"12\"><strong>其他事項：</strong>{{ detailItem.other_notes || '無' }}</v-col>\n                        <v-col cols=\"12\"><strong>施工試驗紀錄：</strong>{{ detailItem.test_records || '無' }}</v-col>\n                        <v-col cols=\"12\"><strong>通知協力廠商：</strong>{{ detailItem.notify_subcontractors || '無' }}</v-col>\n                        <v-col cols=\"12\"><strong>重要事項：</strong>{{ detailItem.important_notes || '無' }}</v-col>\n                    </v-row>\n                </v-card-text>\n\n                <v-card-actions>\n                    <v-btn color=\"green\" class=\"white--text\" @click=\"exportXLSX\">匯出 EXCEL</v-btn>\n                    <v-btn color=\"red\" class=\"white--text\" @click=\"exportPDF\">匯出 PDF</v-btn>\n                    <v-spacer></v-spacer>\n                    <v-btn text=\"關閉\" @click=\"detailDialog = false\">關閉</v-btn>\n                </v-card-actions>\n            </v-card>\n        </v-dialog>\n\n\n\n    </v-container>\n</template>\n\n<script>\n    export default {\n        data() {\n            return {\n                alreadySaveFrom: [],\n                detailDialog: false,\n                detailItem: null,\n                tableHeaders: [\n                    { title: '項目名稱', key: 'workItem' },\n                    { title: '單位', key: 'unit' },\n                    { title: '契約數量', key: 'contract_quantity' },\n                    { title: '本日數量', key: 'todayQuantity' },\n                    { title: '前日累計', key: 'prevTotalQuantity' },\n                    { title: '截至今日', key: 'totalQuantity' },\n                    { title: '備註', key: 'remark' }\n                ]\n            };\n        },\n        mounted() {\n            this.$socket.on(\"msg-input:\" + this.id, (msg) => {\n                switch (msg.topic) {\n                    case \"checkDailyReport\":\n                        // console.log(msg.payload);\n                        this.alreadySaveFrom = msg.payload.map(report => ({\n                            projectName: report.project_name,\n                            contractor: report.contractor,\n                            reportDate: report.report_date,\n                            start_date: report.start_date,\n                            end_date: report.end_date,\n                            weekday: report.weekday,\n                            weather_morning: report.weather_morning,\n                            weather_afternoon: report.weather_afternoon,\n                            planned_progress: report.planned_progress,\n                            actual_progress: report.actual_progress,\n                            other_notes: report.other_notes,\n                            test_records: report.test_records,\n                            notify_subcontractors: report.notify_subcontractors,\n                            important_notes: report.important_notes,\n                            reports: report.materials.map(m => ({\n                                workItem: m.item_name,\n                                contract_quantity: m.contract_quantity,\n                                unit: m.unit,\n                                todayQuantity: m.quantity_today,\n                                totalQuantity: m.quantity_total,\n                                prevTotalQuantity: m.quantity_total - m.quantity_today,\n                                is_special: m.is_special,\n                                remark: m.remark || \" \"\n                            }))\n                        }));\n                        console.log(this.alreadySaveFrom)\n                        break;\n\n                    case \"download\":\n                        this.download(msg);\n                        break;\n                }\n\n                if (msg._client?.socketId !== this.$socket.id) return;\n            });\n        },\n        methods: {\n            openDetailDialog(item) {\n                this.detailItem = item;\n                this.detailDialog = true;\n            },\n            exportXLSX() {\n                if (!this.detailItem || !this.detailItem.reports.length) return;\n\n                const selectedDate = this.detailItem.reportDate;\n                this.send({\n                    topic: \"generate-excel\",\n                    payload: {\n                        date: selectedDate,\n                        data: this.detailItem.reports,\n                        projectName: this.detailItem.projectName\n                    }\n                });\n            },\n            exportPDF() {\n                if (!this.detailItem) return;\n\n                const selectedDate = this.detailItem.reportDate;\n\n                // 組合完整的報表資料\n                const fullReport = {\n                    projectName: this.detailItem.projectName,\n                    contractor: this.detailItem.contractor,\n                    reportDate: selectedDate,\n                    weekday: this.detailItem.weekday,\n                    start_date: this.detailItem.start_date,\n                    end_date: this.detailItem.end_date,\n                    weatherMorning: this.detailItem.weather_morning,\n                    weatherAfternoon: this.detailItem.weather_afternoon,\n                    plannedProgress: this.detailItem.planned_progress,\n                    actualProgress: this.detailItem.actual_progress,\n                    otherNotes: this.detailItem.other_notes,\n                    testRecords: this.detailItem.test_records,\n                    notifySubcontractors: this.detailItem.notify_subcontractors,\n                    importantNotes: this.detailItem.important_notes,\n                    materials: this.detailItem.reports.map(m => ({\n                        itemName: m.workItem,\n                        contract_quantity: m.contract_quantity,\n                        unit: m.unit,\n                        todayQuantity: m.todayQuantity,\n                        prevTotalQuantity: m.prevTotalQuantity,\n                        totalQuantity: m.totalQuantity,\n                        is_special: m.is_special,\n                        remark: m.remark\n                    }))\n                };\n\n                this.send({\n                    topic: \"generate-pdf\",\n                    payload: fullReport\n                });\n            },\n            download(msg) {\n                if (!msg.filename) return;\n                const filename = msg.filename.split(/[\\\\/]/).pop();\n                const fileUrl = `http://127.0.0.1:1880/data/${filename}`;\n                const link = document.createElement(\"a\");\n                link.href = fileUrl;\n                link.setAttribute(\"download\", filename);\n                document.body.appendChild(link);\n                link.click();\n                document.body.removeChild(link);\n            },\n            formatDate(dateStr) {\n                const d = new Date(dateStr);\n                return isNaN(d) ? dateStr : d.toISOString().split(\"T\")[0];\n            },\n            toYesNo(value) {\n                return value == 1 ? '是' : '否';\n            },\n            insuranceStatus(value) {\n                if (value == 1) return '有';\n                if (value == 0) return '無';\n                if (value == 2) return '無新進人員';\n                return '未填寫';\n            },\n        }\n    };\n</script>",
+        "format": "<template>\n    <v-container class=\"d-flex flex-column align-center\">\n        <v-sheet width=\"100%\" class=\"mb-6 py-6 px-2 rounded-xl elevation-2 bg-primary-lighten-5\">\n            <div class=\"text-h4 font-weight-bold text-primary text-center letter-spacing-widest\">\n                匯入契約書\n            </div>\n        </v-sheet>\n        <v-row class=\"w-75 mb-4\" dense>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"projectName\" label=\"工程名稱\" outlined dense required />\n            </v-col>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"contractor\" label=\"承攬廠商名稱\" outlined dense required />\n            </v-col>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"startDate\" label=\"開工日期\" type=\"date\" outlined dense required />\n            </v-col>\n            <v-col cols=\"12\" sm=\"6\">\n                <v-text-field v-model=\"endDate\" label=\"完工日期\" type=\"date\" outlined dense required />\n            </v-col>\n        </v-row>\n        <v-file-input class=\"w-75\" v-model=\"excelFile\" accept=\".xlsx,.xls\" label=\"上傳 Excel 報表\" prepend-icon=\"mdi-upload\"\n            outlined dense></v-file-input>\n        <v-btn color=\"primary\" class=\"mt-3\" @click=\"uploadToBackend\">上傳並解析</v-btn>\n    </v-container>\n</template>\n\n<script>\n    export default {\n        data() {\n            return {\n                projectName: '',\n                contractor: '',\n                startDate: '', // 直接綁 YYYY-MM-DD 字串\n                endDate: '',\n                excelFile: null,\n            };\n        },\n        methods: {\n            uploadToBackend() {\n                if (!this.excelFile || !this.projectName || !this.contractor || !this.startDate || !this.endDate) {\n                    alert(\"請完整填寫所有欄位並選擇檔案\");\n                    return;\n                }\n                const reader = new FileReader();\n                reader.onload = (e) => {\n                    const arrayBuffer = e.target.result;\n                    const uint8Array = new Uint8Array(arrayBuffer);\n\n                    this.send({\n                        payload: uint8Array,\n                        filename: this.excelFile.name,\n                        topic: \"upload-excel\",\n                        projectName: this.projectName,\n                        contractor: this.contractor,\n                        startDate: this.startDate,\n                        endDate: this.endDate\n                    });\n                };\n                reader.readAsArrayBuffer(this.excelFile);\n            }\n        }\n    };\n</script>",
         "storeOutMessages": true,
         "passthru": true,
         "resendOnRefresh": true,
         "templateScope": "local",
         "className": "",
-        "x": 660,
-        "y": 960,
+        "x": 160,
+        "y": 80,
         "wires": [
             [
-                "c2b2bfefb22e1afd",
-                "35c4400e51bc2f42"
+                "3ad0faa4bf2148dd"
             ]
         ]
     },
     {
-        "id": "d40a73f5251d7b18",
-        "type": "function",
-        "z": "87a35e934b9e3dd9",
-        "name": "處理",
-        "func": "let raw = msg.payload;\nlet result = {};\nlet output = [];\n\nfor (let row of raw) {\n    const key = row.report_id;\n\n    if (!result[key]) {\n        result[key] = {\n            report_id: row.report_id,\n            project_id: row.project_id,\n            project_name: row.project_name,\n            contractor: row.contractor,\n            start_date : row.start_date,\n            end_date: row.end_date,\n            report_date: new Date(row.report_date).toISOString().split(\"T\")[0], // yyyy-mm-dd\n            weekday: row.weekday,\n            weather_morning: row.weather_morning,\n            weather_afternoon: row.weather_afternoon,\n            planned_progress: row.planned_progress,\n            actual_progress: row.actual_progress,\n\n            // 新增的報表欄位\n            other_notes: row.other_notes,\n            test_records: row.test_records,\n            notify_subcontractors: row.notify_subcontractors,\n            important_notes: row.important_notes,\n\n            materials: []\n        };\n    }\n\n    // 若有材料資料才加入（有些報表可能沒有材料）\n    if (row.construction_item_id) {\n        result[key].materials.push({\n            item_id: row.construction_item_id,\n            item_name: row.item_name,\n            unit: row.unit,\n            contract_quantity:row.contract_quantity,\n            is_special:row.is_special,\n            quantity_today: row.quantity_today,\n            quantity_total: row.quantity_total,\n            remark: row.remark\n        });\n    }\n}\n\noutput = Object.values(result);\n\nmsg.payload = output;\nmsg.topic = \"checkDailyReport\";\nreturn msg;\n",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 530,
-        "y": 960,
-        "wires": [
-            [
-                "8828227c20361698",
-                "8f643137db211451"
-            ]
-        ]
-    },
-    {
-        "id": "8f643137db211451",
+        "id": "46da6534a6042da4",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
-        "name": "15",
-        "active": false,
+        "z": "55d30d31a5f17410",
+        "name": "debug 2",
+        "active": true,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
@@ -1079,59 +988,66 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 650,
-        "y": 1000,
+        "x": 820,
+        "y": 80,
         "wires": []
     },
     {
-        "id": "00663ff20eb3567b",
+        "id": "0112b44b77f187c3",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
-        "name": "輸出PDF",
-        "func": "const PDFDocument = global.get(\"PDFDocument\");\nconst fs = global.get(\"fs\");\n\nconst date = msg.payload.reportDate;\nconst filename = `施工日誌_${date}.pdf`;\nconst filepath = `C:/Users/user/.node-red/static/data/${filename}`;\n\nconst doc = new PDFDocument({ size: \"A4\", margin: 40 });\ndoc.registerFont(\"kai\", \"C:/Users/User/.node-red/fonts/kaiu.ttf\");\ndoc.font(\"kai\");\ndoc.lineWidth(0.6);\n\n//頁面高度跟底部\nconst pageHeight = doc.page.height;\nconst bottomMargin = 60;\nconst maxY = pageHeight - bottomMargin;\n\nvar pageNumber = 1; // 起始頁碼\n\n// 畫標題與表頭\nfunction drawHeader(weatherMorning, weatherAfternoon, reportDate, weekday) {\n    [233.7, 233.8, 233.9, 234, 234.1, 234.2, 234.3].forEach(x => doc.fontSize(16).text(\"公共工程施工日誌\", x, 70));\n    doc.fontSize(8);\n\n    // 氣象\n    doc.text(\"表報編號：\", 30, 87.5);\n    doc.text(\"本日天氣：上午：\" + weatherMorning + \"　下午：\" + weatherAfternoon, 100, 87.5);\n\n    // 將日期格式化為：2025年04月15日\n    const dateText = formatDateWithChinese(reportDate, weekday);\n\n    // 日期\n    doc.text(\"填表日期：\" + dateText, 400, 87.5);\n}\n\nfunction formatDateWithChinese(dateInput, weekday = \"\") {\n    const d = new Date(dateInput);\n    if (isNaN(d)) return \"\";\n    const year = d.getFullYear();\n    const month = String(d.getMonth() + 1).padStart(2, \"0\");\n    const day = String(d.getDate()).padStart(2, \"0\");\n    return `${year}年${month}月${day}日${weekday ? `(${weekday})` : \"\"}`;\n}\n\n\ndrawHeader(\n    msg.payload.weatherMorning,\n    msg.payload.weatherAfternoon,\n    msg.payload.reportDate,\n    msg.payload.weekday\n);\n\n// === 通用參數 ===\nconst startX = 30, startY = 97, totalWidth = 535, rowHeight = 16, fontSize = 8, lineGap = 0;\nconst leftColWidth = 267.5, rightColWidth = 267.5, leftSubColWidth = 133, rightSubColWidth = 133;\ndoc.fontSize(fontSize);\n\n// === 共用函式 ===\nfunction drawRow(y, options) {\n    const {\n        colWidths = null,\n        xPositions = null,\n        labels = [],\n        offsets = [],\n        height = rowHeight,\n        drawBottomLine = true,\n        align = 'center',\n        fontSize = doc._fontSize ?? 8\n    } = options;\n\n    let xList = [];\n    if (xPositions) {\n        xList = [...xPositions];\n    } else if (colWidths) {\n        let x = startX;\n        xList.push(x);\n        for (let w of colWidths) {\n            x += w;\n            xList.push(x);\n        }\n    } else {\n        throw new Error(\"drawRow 需要 colWidths 或 xPositions\");\n    }\n\n    doc.rect(xList[0], y, xList[xList.length - 1] - xList[0], height).stroke();\n    for (let i = 1; i < xList.length - 1; i++) {\n        doc.moveTo(xList[i], y).lineTo(xList[i], y + height).stroke();\n    }\n    if (drawBottomLine) {\n        doc.moveTo(xList[0], y + height).lineTo(xList[xList.length - 1], y + height).stroke();\n    }\n\n    for (let i = 0; i < labels.length; i++) {\n        try {\n            // 1. 安全轉字串（避免傳入 undefined）\n            const labelRaw = labels[i];\n            const label = (typeof labelRaw === 'string') ? labelRaw : (labelRaw?.toString?.() ?? '');\n\n            // 2. 安全取得 offset\n            const offsetRaw = offsets[i];\n            const offset = Number.isFinite(offsetRaw) ? offsetRaw : 0;\n\n            // 3. 安全取得欄位位置\n            const xStart = xList[i];\n            const xEnd = xList[i + 1];\n            if (typeof xStart !== 'number' || typeof xEnd !== 'number') {\n                throw new Error(`xStart 或 xEnd 為無效數字：xList[${i}] = ${xStart}, xList[${i + 1}] = ${xEnd}`);\n            }\n            const colWidth = xEnd - xStart;\n\n            // 4. 計算位置並寫文字\n            let textX = xStart;\n            const textY = y + (height - fontSize) / 2;\n            if (align === 'center') {\n                const textWidth = doc.widthOfString(label);\n                textX = xStart + (colWidth - textWidth) / 2 + offset;\n            } else {\n                textX = xStart + offset;\n            }\n\n            // 5. 寫入文字\n            doc.text(label, textX, textY);\n        } catch (err) {\n            doc.text(`[ERR]`, startX, y + i * 10); // 簡單標記錯誤\n            node.error(`drawRow 第 ${i} 欄錯誤：${err.message}`);\n        }\n    }\n\n    return xList;\n}\n\n\n//畫格子且讓字置中\nfunction drawRowTextCenter(y, colWidths, labels = [], offsets = []) {\n    let x = startX;\n    const xList = [x];\n    for (let w of colWidths) {\n        x += w;\n        xList.push(x);\n    }\n\n    // 畫外框\n    doc.rect(startX, y, totalWidth, rowHeight).stroke();\n\n    // 畫欄位分隔線\n    for (let i = 1; i < xList.length; i++) {\n        doc.moveTo(xList[i], y).lineTo(xList[i], y + rowHeight).stroke();\n    }\n    // 畫下邊線\n    doc.moveTo(startX, y + rowHeight).lineTo(startX + totalWidth, y + rowHeight).stroke();\n\n    // 寫入文字並置中\n    for (let i = 0; i < labels.length; i++) {\n        const colX = xList[i];\n        const colWidth = colWidths[i];\n        const offset = offsets[i] ?? 0;\n\n        doc.text(labels[i], colX + offset, y + 5, {\n            width: colWidth,\n            align: 'center'\n        });\n    }\n}\n\nfunction drawAutoHeightRow(y, colWidths, texts, offsets = [], lineGap = 0, fontSize = 8, estimateOnly = false, alignLeftIfMultiline = []) {\n    let x = startX;\n    const xList = [x];\n    for (let w of colWidths) {\n        x += w;\n        xList.push(x);\n    }\n\n    let maxLineCount = 1;\n    const lineCounts = [];\n\n    for (let i = 0; i < texts.length; i++) {\n        const offset = offsets[i] ?? 2;\n        const width = colWidths[i] - offset * 2;\n\n        const text = texts[i] || '';\n        const textHeight = doc.heightOfString(text, {\n            width,\n            lineGap\n        });\n\n        // 這裡保留 Math.ceil() 確保高度足夠，但接下來再多加條件避免誤判\n        const lineCount = Math.ceil(textHeight / (fontSize + lineGap));\n\n        lineCounts.push(lineCount);\n        if (lineCount > maxLineCount) maxLineCount = lineCount;\n    }\n\n    const rowH = (fontSize + lineGap) * maxLineCount + 1;\n    if (estimateOnly) return rowH;\n\n    // 畫外框與欄位分隔線\n    doc.rect(startX, y, totalWidth, rowH).stroke();\n    for (let i = 1; i < xList.length; i++) {\n        doc.moveTo(xList[i], y).lineTo(xList[i], y + rowH).stroke();\n    }\n    doc.moveTo(startX, y + rowH).lineTo(startX + totalWidth, y + rowH).stroke();\n\n    // 寫入文字（確保「允許」+「實際超過一行」才置左）\n    for (let i = 0; i < texts.length; i++) {\n        const offset = offsets[i] ?? 2;\n        const colX = xList[i];\n        const colWidth = colWidths[i];\n        const textWidth = colWidth - offset * 2;\n\n        const text = texts[i] || '';\n        let align = 'center';\n\n        // ✅ 必須同時符合「在允許清單內」與「實際行數 > 2」才置左\n        if (alignLeftIfMultiline.includes(i) && lineCounts[i] > 2) {\n            align = 'left';\n        }\n\n        doc.text(text, colX + offset, y + 2, {\n            width: textWidth,\n            align,\n            lineGap\n        });\n    }\n\n    return rowH;\n}\n\n//用於繪製粗框線的特定施工項目的。\nfunction drawFramedTableBlock(dataList, colWidths, colOffsets, sectionTitle, options = {}) {\n    const headerFontSize = options.headerFontSize ?? 8;\n    const rowFontSize = options.rowFontSize ?? fontSize;\n    const rowLineGap = options.rowLineGap ?? lineGap;\n    const alignLeftIfMultiline = options.alignLeftIfMultiline ?? [0, 5];\n\n    const sectionHeader = [sectionTitle, \"\", \"\", \"\", \"\", \"\"];\n    let x = startX;\n    const xList = [x];\n    for (let w of colWidths) xList.push(x += w);\n\n    function drawHeaderRow(y, forceFixedHeight = null) {\n        const headerH = forceFixedHeight ?? drawAutoHeightRow(y, colWidths, sectionHeader, colOffsets, rowLineGap, headerFontSize, true);\n        doc.fontSize(headerFontSize).lineWidth(2);\n        doc.rect(startX, y, totalWidth, headerH).stroke();\n        doc.lineWidth(0.6);\n        for (let i = 1; i < xList.length; i++) {\n            doc.moveTo(xList[i], y).lineTo(xList[i], y + headerH).stroke();\n        }\n        doc.moveTo(startX, y + headerH).lineTo(startX + totalWidth, y + headerH).stroke();\n        for (let i = 0; i < sectionHeader.length; i++) {\n            const offset = colOffsets[i] ?? 5;\n            const width = colWidths[i] - 4;\n            doc.text(sectionHeader[i], xList[i] + offset, y + 2, { width, lineGap });\n        }\n        return headerH;\n    }\n\n\n    if (dataList.length === 0) {\n        dataList = [{\n            item: \"\",\n            unit: \"\",\n            contract_quantity: \"\",\n            todayQuantity: \"\",\n            totalQuantity: \"\",\n            note: \"\"\n        }];\n    }\n\n    let blockStartY = currentY;\n    let blockHeight = 0;\n\n    let headerH = drawHeaderRow(currentY);\n    currentY += headerH;\n    blockHeight += headerH;\n\n    doc.fontSize(rowFontSize);\n\n    for (let item of dataList) {\n        const values = Object.values(item);\n        const estHeight = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, true, alignLeftIfMultiline);\n        if (currentY + estHeight > maxY) {\n            doc.lineWidth(2);\n            doc.rect(startX, blockStartY, totalWidth, blockHeight).stroke();\n            drawPageNumber(pageNumber);\n            doc.addPage();\n            pageNumber++;\n            currentY = startY;\n            blockStartY = currentY;\n            blockHeight = 0;\n            headerH = drawHeaderRow(currentY, headerH);\n            currentY += headerH;\n            blockHeight += headerH;\n            doc.fontSize(rowFontSize);\n        }\n        const usedHeight = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, false, alignLeftIfMultiline);\n        currentY += usedHeight;\n        blockHeight += usedHeight;\n    }\n\n    doc.lineWidth(2);\n    doc.rect(startX, blockStartY, totalWidth, blockHeight).stroke();\n    doc.lineWidth(0.6);\n}\n\n//三種資料表的寫法合併\nfunction drawDynamicTableSection(dataList, colWidths, colOffsets, labels, options = {}) {\n    const rowFontSize = options.fontSize ?? 8;\n    const rowLineGap = options.lineGap ?? 0;\n    const alignLeftIfMultiline = options.alignLeftIfMultiline ?? [0, 5];\n    //沒數據的時候給一行空白資料列\n    const defaultEmptyRow = options.defaultEmptyRow ?? {\n        itemName: '',\n        unit: '',\n        contract_quantity: '',\n        todayQuantity: '',\n        totalQuantity: '',\n        remark: ''\n    };\n\n    const rowsToRender = (dataList.length > 0) ? dataList : [defaultEmptyRow];\n\n    for (let row of rowsToRender) {\n        const values = [\n            row.itemName,\n            row.unit,\n            row.contract_quantity,\n            row.todayQuantity,\n            row.totalQuantity,\n            row.remark\n        ];\n\n        const estimatedHeight = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, true, alignLeftIfMultiline);\n\n        if (currentY + estimatedHeight > maxY) {\n            drawPageNumber(pageNumber);\n            doc.addPage();\n            pageNumber++;\n            currentY = startY;\n\n            // 重畫表頭列\n            drawRow(currentY, {\n                colWidths,\n                labels,\n                offsets: colOffsets\n            });\n            currentY += rowHeight;\n        }\n\n        const heightUsed = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, false, alignLeftIfMultiline);\n        currentY += heightUsed;\n    }\n}\n\n//頁碼區塊\nfunction drawPageNumber(pageNumber) {\n    doc.fontSize(12).text(`-${pageNumber}-`, 0, doc.page.height - 55, {\n        width: doc.page.width,\n        align: \"center\"\n    });\n}\n\n// === 表格繪製 ===\ndoc.fontSize(8);\n\nconst colX = {\n    x0: startX,\n    x1: startX + leftSubColWidth,\n    x2: startX + leftColWidth,\n    x3: startX + leftColWidth + rightSubColWidth,\n    x4: startX + leftColWidth + rightColWidth,\n};\n\nconst colPositions = [\n    colX.x0, (colX.x0 + colX.x1) / 2, colX.x1, (colX.x1 + colX.x2) / 2,\n    colX.x2, (colX.x2 + colX.x3) / 2, colX.x3, (colX.x3 + colX.x4) / 2 + 15, colX.x4\n];\n\nconst projectText = msg.payload.projectName;\nconst companyText = msg.payload.contractor;\n// const projectText = \"臺中市西屯區市政北一路與惠中路口排水改善暨周邊人行道及附屬設施工程（第一期）\";\n// const companyText = \"安瑞環境科技股份有限公司（名稱過長範例用換行測試）\";\n\nconst maxWidthProject = leftColWidth - leftSubColWidth - 4;\nconst maxWidthCompany = rightColWidth - rightSubColWidth - 4;\n\nvar fontHeight = fontSize;\nvar paddingY = 1;\n\nconst projectHeight = doc.heightOfString(projectText, { width: maxWidthProject, lineGap });\nconst companyHeight = doc.heightOfString(companyText, { width: maxWidthCompany, lineGap });\n\nconst contentHeight = Math.max(projectHeight, companyHeight);\nlet dynamicHeight = contentHeight + paddingY * 2;\n\n// 當只有一行內容時進一步壓縮高度\nif (contentHeight <= fontHeight) {\n    dynamicHeight = fontHeight + paddingY * 2;\n}\n\nlet currentY = startY;\n\n// 畫格子與分隔線\ndoc.rect(startX, currentY, totalWidth, dynamicHeight).stroke();\ndoc.moveTo(colX.x1, currentY).lineTo(colX.x1, currentY + dynamicHeight).stroke();\ndoc.moveTo(colX.x2, currentY).lineTo(colX.x2, currentY + dynamicHeight).stroke();\ndoc.moveTo(colX.x3, currentY).lineTo(colX.x3, currentY + dynamicHeight).stroke();\n\n// 標題垂直置中（fontHeight 代表標題的實際字高）\nconst titleY = currentY + (dynamicHeight - fontHeight) / 2;\n\ndoc.text(\"工程名稱\", colX.x0 + 35, titleY);\ndoc.text(\"承攬廠商名稱\", colX.x2 + 35, titleY);\n\n// 內容文字（靠上顯示，避免底部空白）\ndoc.text(projectText, colX.x1 + 5, currentY + paddingY, {\n    width: maxWidthProject,\n    lineGap\n});\ndoc.text(companyText, colX.x3 + 2, currentY + paddingY, {\n    width: maxWidthCompany,\n    lineGap\n});\n\ncurrentY += dynamicHeight;\n// === 第二列（8 格） ===\ndrawRow(currentY, {\n    xPositions: colPositions,\n    labels: [\"核定工期\", \"9999天\", \"累計工期\", \"9999天\", \"剩餘工期\", \"9999天\", \"工期展延天數\", \"9999天\"],\n    offsets: [0, 0, 0, 0, 0, 0, 0, 0],\n    align: \"center\"\n});\ncurrentY += rowHeight; //增加行高\n\n// === 第三列（4 格） ===\ndrawRow(currentY, {\n    colWidths: [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n    labels: [\"開工日期\", formatDateWithChinese(msg.payload.start_date), \"完工日期\", formatDateWithChinese(msg.payload.end_date)],\n    offsets: [0, 0, 0, 0]\n});\n// drawRow(currentY, [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n//     [\"開工日期\", \"999年99月99日\", \"完工日期\", \"999年99月99日\"],\n//     [30, 20, 25, 25]\n// );\ncurrentY += rowHeight;\n\n// === 第四列（4 格） ===\ndrawRow(currentY, {\n    colWidths: [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n    labels: [\"預定進度(%)\", msg.payload.plannedProgress, \"實際進度(%)\", msg.payload.actualProgress],\n    offsets: [0, 0, 0, 0]\n});\n// drawRow(currentY, [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n//     [\"預定進度(%)\", \"100%\", \"實際進度(%)\", \"100%\"],\n//     [30, 20, 25, 25]\n// );\ncurrentY += rowHeight;\n\n// === 第五列（1 格） ===\ndrawRow(currentY, {\n    colWidths: [totalWidth],\n    labels: [\"一、依施工計畫書執行按圖施工概況（含約定之重要施工項目及完成數量等）：\"],\n    offsets: [5],\n    align: \"left\"\n});\ncurrentY += rowHeight;\n\n\n// === 施工項目 ===\n// 第六列：表頭\nvar tableColWidths = [118, 35, 82, 93, 93, 114];\nvar tableTextOffsets = [0, 0, 0, 0, 0, 0];\n\ndrawRow(currentY, {\n    colWidths: tableColWidths,\n    labels: [\"施工項目\", \"單位\", \"契約數量\", \"本日完成數量\", \"累計完成數量\", \"備註\"],\n    offsets: tableTextOffsets\n});\ncurrentY += rowHeight;\n\n// 第七列開始的施工項目資料列（動態列數、換頁）\nconst constructionProject = [];\nlet specialTableData = [];\n\nconst materialsRowData = msg.payload.materials || [];\n\nfor (let m of materialsRowData) {\n    const converted = {\n        itemName: m.itemName,\n        unit: m.unit,\n        contract_quantity: String(m.contract_quantity),\n        todayQuantity: String(m.todayQuantity),\n        totalQuantity: String(m.totalQuantity),\n        remark: m.remark || \"\"\n    };\n\n    if (m.is_special === 1) {\n        specialTableData.push(converted);\n    } else {\n        constructionProject.push(converted);\n    }\n}\n// const constructionProject = [\n//     { item: \"土方開挖\", unit: \"m³\", contract_quantity: \"100\", todayQuantity: \"10\", totalQuantity: \"70\", note: \"正常進行\" },\n//     { item: \"混凝土澆置（含模板、鋼筋）\", unit: \"m³\", contract_quantity: \"200\", todayQuantity: \"30\", totalQuantity: \"100\", note: \"雨天順延施工\" },\n//     // { item: \"道路回填\", unit: \"m³\", contract_quantity: \"50\", todayQuantity: \"5\", totalQuantity: \"40\", note: \"備註文字比較長，測試是否會換行並調整高度\" }\n// ];\ndrawDynamicTableSection(constructionProject, tableColWidths, tableTextOffsets, [\"施工項目\", \"單位\", \"契約數量\", \"本日完成數量\", \"累計完成數量\", \"備註\"]);\n\n//=== 特定項目資料列 ===\n// specialTableData = [\n//     { item: \"鋪設管道\", unit: \"m\", contract_quantity: \"300\", todayQuantity: \"20\", totalQuantity: \"200\", note: \"進度良好\" },\n//     { item: \"鋪設人行道\", unit: \"m²\", contract_quantity: \"100\", todayQuantity: \"10\", totalQuantity: \"70\", note: \"已完成部分\" },\n// ];\ndrawFramedTableBlock(specialTableData, tableColWidths, tableTextOffsets, \"營造業專業工程特定施工項目\", {\n    headerFontSize: 7,\n    rowFontSize: 8,\n    rowLineGap: 0,\n    alignLeftIfMultiline: [0, 5] // 可自定左對齊欄位\n});\n\n\n// === 工地材料管理概況 ===\ndrawRow(currentY, {\n    colWidths: [totalWidth],\n    labels: [\"二、工地材料管理概況（含約定之重要材料使用狀況及數量等）：\"],\n    offsets: [5],\n    align: \"left\"\n});\ncurrentY += rowHeight;\n\n//畫表頭\ndrawRow(currentY, {\n    colWidths: tableColWidths,\n    labels: [\"材料名稱\", \"單位\", \"契約數量\", \"本日使用數量\", \"累計使用數量\", \"備註\"],\n    offsets: tableTextOffsets\n});\ncurrentY += rowHeight;\n\nconst materials = [];\n// const materials = [\n//     { item: \"混凝土澆置（含模板、鋼筋）\", unit: \"m³\", contract_quantity: \"200\", todayQuantity: \"30\", totalQuantity: \"100\", remark: \"雨天順延施工\" },\n//     { item: \"道路回填\", unit: \"m³\", contract_quantity: \"50\", todayQuantity: \"5\", totalQuantity: \"40\", remark: \"備註文字比較長，測試是否會換行並調整高度\" },\n// ];\ndrawDynamicTableSection(materials, tableColWidths, tableTextOffsets, [\"材料名稱\", \"單位\", \"契約數量\", \"本日使用數量\", \"累計使用數量\", \"備註\"]);\n\n// === 工地人員及機具管理 ===\ndrawRow(currentY, {\n    colWidths: [totalWidth],\n    labels: [\"三、工地人員及機具管理（含約定之出工人數及機具使用情形及數量）：\"],\n    offsets: [5],\n    align: \"left\"\n});\ncurrentY += rowHeight;\n\n//格子寬度與字間距\ndrawRow(currentY, {\n    colWidths: tableColWidths,\n    labels: [\"工別\", \"本日人數\", \"累計人數\", \"機具名稱\", \"本日使用數量\", \"累計使用數量\"],\n    offsets: tableTextOffsets\n});\ncurrentY += rowHeight;\n\nconst personnelEquipmentManagement = [];\n// const personnelEquipmentManagement = [\n//     { item: \"挖土作業\", unit: \"5\", contract_quantity: \"20\", todayQuantity: \"挖土機\", totalQuantity: \"2\", note: \"8\" },\n// ];\n\ndrawDynamicTableSection(materials, tableColWidths, tableTextOffsets, [\"工別\", \"本日人數\", \"累計人數\", \"機具名稱\", \"本日使用數量\", \"累計使用數量\"]);\n\n// === 營造業專業工程特定施工項目應置之技術士種類、比率或人數標準表 ===\n// 先將線寬暫存下來\nconst originalLineWidth = doc._lineWidth;\n\n// 使用粗框線\ndoc.lineWidth(1);\n\n//給予主體高度以及判斷換頁\nvar blockHeight = 23;\nif (currentY + blockHeight > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\n// 繪製主框\ndoc.rect(startX, currentY, totalWidth, blockHeight).stroke();\n\n// 在框裡寫文字\nvar textLeftPadding = 5;\nvar contentText = \"四、本日施工項目是否有須依「營造業專業工程特定施工項目應置之技術士種類、比率或人數標準表」規定應設置技術士之專業工程：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 2, {\n    width: totalWidth\n});\n\n// 假設要畫的方框大小及線條粗細\nconst checkboxSize = 8;\ndoc.lineWidth(0.5);\n\n// 第一個方框 (□有)\nconst checkbox1X = startX + 480;  // 可以依需求微調\nconst checkbox1Y = currentY + 2;\n\n// 第二個方框 (□無)\nconst checkbox2X = checkbox1X + 20;\nconst checkbox2Y = checkbox1Y;\n\n// 畫「有」的空方框與文字\ndoc.rect(checkbox1X, checkbox1Y, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", checkbox1X + checkboxSize + 2, checkbox1Y);\n\n// 畫「無」的空方框與文字\ndoc.rect(checkbox2X, checkbox2Y, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", checkbox2X + checkboxSize + 2, checkbox2Y);\n\nconst noteText = \"(此項如勾選「有」，則應填寫後附「公共工程施工日誌之技術士簽章表」)\";\ndoc.text(noteText, startX + textLeftPadding, checkbox2Y + 10, {\n    width: totalWidth - 20\n});\ncurrentY += blockHeight;\n\n// === 施工前檢查事項 ===\nif (currentY + 31 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"五、工地職業安全衛生事項之督導、公共環境與安全之維護及其他工地行政事務：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 5);\ncontentText = \"  (ㄧ)施工前檢查事項：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 18);\ncontentText = \"   1.實施勤前教育(含工地預防災變及危害告知)：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 31);\n\ndoc.lineWidth(0.5);\n//勤前教育確認\n// 畫「有」的空方框與文字\ndoc.rect(215, currentY + 31, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", 215 + checkboxSize + 2, currentY + 31);\n\n// 畫「無」的空方框與文字\ndoc.rect(235, currentY + 31, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", 235 + checkboxSize + 2, currentY + 31);\n\ncontentText = \"   2.確認新進勞工是否提報勞工保險(或其他商業保險)資料及安全衛生教育訓練紀錄：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 44);\n\n// 「有」\ndoc.rect(345, currentY + 44, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", 345 + checkboxSize + 2, currentY + 44);\n\n// 「無」\ndoc.rect(365, currentY + 44, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", 365 + checkboxSize + 2, currentY + 44);\n\n// 「無新進員工」\ndoc.rect(385, currentY + 44, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無新進員工\", 385 + checkboxSize + 2, currentY + 44);\n\n//檢查勞工個人防護具\ncontentText = \"   3.檢查勞工個人防護具：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 57);\n\n// 「有」\ndoc.rect(140, currentY + 57, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", 140 + checkboxSize + 2, currentY + 57);\n\n// 「無」\ndoc.rect(160, currentY + 57, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", 160 + checkboxSize + 2, currentY + 57);\n\n\ncontentText = \"  (二)其他事項：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 70);\n\n// === 設定區 ===\nvar lineHeight = fontSize + lineGap;\nvar paragraphPadding = 10;\nvar otherNotesTextWidth = totalWidth - paragraphPadding * 2;\ndoc.fontSize(fontSize);\ndoc.lineWidth(1);\n\n// === 你的內容 ===\nconst otherNotes = msg.payload.otherNotes;\n\n// === 自訂：將文字根據欄寬分成多行 ===\nfunction breakTextToLinesByWidth(text, maxWidth, doc) {\n    const lines = [];\n    let currentLine = '';\n    for (let i = 0; i < text.length; i++) {\n        const char = text[i];\n        const testLine = currentLine + char;\n        const testWidth = doc.widthOfString(testLine);\n        if (testWidth > maxWidth) {\n            lines.push(currentLine);\n            currentLine = char;\n        } else {\n            currentLine = testLine;\n        }\n    }\n    if (currentLine) lines.push(currentLine);\n    return lines;\n}\n\nlet lines = breakTextToLinesByWidth(otherNotes, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nlet boxStartY = currentY;\ncurrentY += 96\nlet boxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 施工取樣試驗紀錄 ===\nif (currentY + 28 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"六、施工取樣試驗紀錄：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 1);\n\nconst testRecord = msg.payload.testRecords;\n\nlines = breakTextToLinesByWidth(testRecord, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nboxStartY = currentY;\ncurrentY += 14\nboxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 通知協力廠商辦理事項 ===\nif (currentY + 28 > maxY) {\n    drawPageNumber(pageNumber);\n\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"七、通知協力廠商辦理事項：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 1);\n\nconst vendorTask = msg.payload.notifySubcontractors;\n\nlines = breakTextToLinesByWidth(vendorTask, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nboxStartY = currentY;\ncurrentY += 14\nboxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 通知協力廠商辦理事項 ===\nif (currentY + 28 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"八、重要事項記錄：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 1);\n\nconst importantRecord = msg.payload.importantNotes;\n// const importantRecord = \"今日施工現場發現部分機具未妥善覆蓋，已通知承攬商限期改善，並完成區域警示標示。\" +\n//     \"因雨天地面濕滑，泥濘處應加設防滑墊或步道板，以防止勞工滑倒受傷。\" +\n//     \"此外建議下週加強臨時電線管理並補強危害標示。\";\n\nlines = breakTextToLinesByWidth(importantRecord, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nboxStartY = currentY;\ncurrentY += 14\nboxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 簽章 ===\nif (currentY + 14 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\ncontentText = \"簽章：【工地主任】（註3）：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 2);\ndoc.rect(startX, currentY, totalWidth, 16).stroke();\ncurrentY += 16\n\n// === 備註區塊 ===\nconst remarks = 9;\ndoc.fontSize(7);\n\n// 註解文字陣列\nconst remarkLines = [\n    \"註：1.依營造業法第32條第1項第2款規定，工地主任應按日填報施工日誌\",\n    \"    2.本施工日誌格式僅供參考，惟原則應包含上開欄位，各機關亦得依工程性質及契約約定事項自行增訂之。\",\n    \"    3.本工程依營造業法第30條規定須置工地主任者，由工地主任簽章；依上開規定免置工地主任者，則由營造業法第32條第2項所定之人員簽章。廠商非屬營造業者，\",\n    \"    由工地負責人簽章。\",\n    \"    4.契約工期如有修正，應填修正後之契約工期，含展延工期及不計工期天數；如有依契約變更設計，預定進度及實際進度應填變更設計後計算之進度。\",\n    \"    5.上開重要事項記錄包含（1）主辦機關及監造單位指示（2）工地遇緊急異常狀況之通報處理情形（3）本日是否由專任工程人員督察按圖施工、解決施工技術問\",\n    \"    題等。\",\n    \"    6.上開施工前檢查事項所列工作應由職業安全衛生管理辦法第3條規定所置職業安全衛生人員於每日施工前辦理(檢查紀錄參考範例如附工地職業安全衛生施工前檢\",\n    \"    查紀錄表)，工地主任負責督導及確認該事項完成後於施工日誌填載。\",\n    \"    7.公共工程屬建築物者，請依內政部最新訂頒之「建築物施工日誌」填寫。\",\n];\n\n// 遍歷每一行文字並處理自動換頁\nfor (let i = 0; i < remarkLines.length; i++) {\n    if (currentY + remarks > maxY) {\n        drawPageNumber(pageNumber);\n        doc.fontSize(7);\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n    }\n\n    const contentText = remarkLines[i];\n    doc.text(contentText, startX, currentY + 1);\n    currentY += remarks;\n}\n\n// 輸出 PDF\nconst stream = fs.createWriteStream(filepath);\ndoc.pipe(stream);\n\ndrawPageNumber(pageNumber);\ndoc.end();\n\nstream.on(\"finish\", () => {\n    msg.payload = { success: true };\n    msg.topic = \"download\";\n    msg.filename = filepath;\n    node.send(msg);\n});\n\ndoc.rect(startX, currentY, totalWidth, blockHeight).stroke();\n\nreturn null;",
+        "z": "55d30d31a5f17410",
+        "name": "查詢專案版本",
+        "func": "msg.topic = \"SELECT MAX(`version`) AS max_version FROM `projects` WHERE `name` = ?\";\nmsg.params = [msg.projectName]; // 這裡要是陣列！\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 920,
-        "y": 960,
+        "x": 460,
+        "y": 80,
         "wires": [
             [
-                "846be4bec50e0ed7"
+                "93229f3fce5fe30a",
+                "4dbb1ef5e8aaa2e2"
             ]
         ]
     },
     {
-        "id": "c2b2bfefb22e1afd",
-        "type": "switch",
-        "z": "87a35e934b9e3dd9",
+        "id": "93229f3fce5fe30a",
+        "type": "mysql",
+        "z": "55d30d31a5f17410",
+        "mydb": "0b4c50e32bf6a5fa",
         "name": "",
-        "property": "topic",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "eq",
-                "v": "generate-pdf",
-                "vt": "str"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
-        "outputs": 1,
-        "x": 790,
-        "y": 960,
+        "x": 630,
+        "y": 80,
         "wires": [
             [
-                "00663ff20eb3567b"
+                "46da6534a6042da4"
             ]
         ]
+    },
+    {
+        "id": "4dbb1ef5e8aaa2e2",
+        "type": "debug",
+        "z": "55d30d31a5f17410",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 620,
+        "y": 120,
+        "wires": []
     },
     {
         "id": "ebfcffea5f99d3e9",
         "type": "ui-template",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "group": "aa5eafae9912e1d1",
         "page": "",
@@ -1148,7 +1064,7 @@
         "templateScope": "local",
         "className": "",
         "x": 760,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "a8c911f8db338b91",
@@ -1159,13 +1075,13 @@
     {
         "id": "2f11c38255c7dd6c",
         "type": "ui-control",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "",
         "ui": "0b56277067a47c7e",
         "events": "all",
         "x": 160,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "ac52d4ea4a9cf404",
@@ -1176,9 +1092,9 @@
     {
         "id": "ac52d4ea4a9cf404",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 7",
+        "name": "debug 1",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1188,13 +1104,13 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 320,
-        "y": 660,
+        "y": 180,
         "wires": []
     },
     {
         "id": "31f24c14727732a7",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "查詢",
         "func": "// if (msg.name == \"填寫每日報表\") {\n    msg.topic = \"SELECT id,name,contractor,start_date,end_date FROM projects;\";\n    msg.topic += \"SELECT id,project_id,name,unit,contract_quantity,is_special FROM construction_items;\"\n    return msg;\n// }",
@@ -1205,7 +1121,7 @@
         "finalize": "",
         "libs": [],
         "x": 290,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "2d8b82eab03239b0"
@@ -1215,9 +1131,9 @@
     {
         "id": "5edd607fb758c701",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 8",
+        "name": "debug 2",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1227,18 +1143,18 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 580,
-        "y": 660,
+        "y": 180,
         "wires": []
     },
     {
         "id": "2d8b82eab03239b0",
         "type": "mysql",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "mydb": "0b4c50e32bf6a5fa",
         "name": "",
         "x": 430,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "5edd607fb758c701",
@@ -1249,9 +1165,9 @@
     {
         "id": "a8c911f8db338b91",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 9",
+        "name": "debug 3",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1261,13 +1177,13 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 920,
-        "y": 660,
+        "y": 180,
         "wires": []
     },
     {
         "id": "71b1f8964b9adead",
         "type": "inject",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "",
         "props": [
@@ -1288,7 +1204,7 @@
         "payload": "",
         "payloadType": "date",
         "x": 160,
-        "y": 660,
+        "y": 180,
         "wires": [
             [
                 "31f24c14727732a7"
@@ -1298,7 +1214,7 @@
     {
         "id": "87cef5659a5ed34f",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "每日報表寫入",
         "func": "if (msg.checkingDuplicate) {\n    if (msg.payload.length > 0) {\n        node.warn(\"該日期的報表已存在，無法新增\");\n        msg.payload = { error: \"報表已存在，請勿重複填寫。\" };\n        msg.topic = \"dailyReportAlreadyExist\"\n        return [null, msg];  // 導向錯誤處理支線\n    } else {\n        const payload = msg.rowData;\n\n        const date = new Date(payload.reportDate);\n        const dayIndex = date.getDay(); // 0～6\n        const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];\n        const weekday = days[dayIndex];\n\n        function convertYesNoToNumber(value) {\n            if (value === '是') return 1\n            if (value === '否') return 0\n            return 2\n        }\n\n        const dailyReport = {\n            report_date: payload.reportDate,\n            project_id: payload.projectId,\n            weather_morning: payload.weatherMorning,\n            weather_afternoon: payload.weatherAfternoon,\n            planned_progress: payload.progressPlanned,\n            actual_progress: payload.progressActual,\n            test_records: payload.testRecords,\n            notify_subcontractors: payload.notifySubcontractors,\n            important_notes: payload.importantNotes,\n            other_notes: payload.otherNotes\n        };\n\n        // 產出插入 daily_reports 的 SQL 語句\n        const insertDailyReportSQL = `\n    INSERT INTO daily_reports (\n    project_id,report_date, weekday, weather_morning, weather_afternoon,\n    planned_progress, actual_progress,\n    other_notes, test_records, notify_subcontractors, important_notes\n    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)\n    `;\n\n        const dailyReportParams = [\n            dailyReport.project_id,\n            dailyReport.report_date,\n            weekday,\n            dailyReport.weather_morning,\n            dailyReport.weather_afternoon,\n            dailyReport.planned_progress,\n            dailyReport.actual_progress,\n            dailyReport.other_notes,\n            dailyReport.test_records,\n            dailyReport.notify_subcontractors,\n            dailyReport.important_notes\n        ];\n\n        // 回傳插入主報表資料（可供下一個節點執行 SQL）\n        // 你要接一個「資料庫節點」，並勾選回傳 insertId\n        msg.topic = insertDailyReportSQL;\n        msg.payload = dailyReportParams;\n        msg.dailyReport = dailyReport;\n        msg._next = {\n            materials: payload.materialsUsedToday\n        };\n        return [msg, null];\n    }\n}",
@@ -1309,7 +1225,7 @@
         "finalize": "",
         "libs": [],
         "x": 1300,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "fae7d158c10a1112"
@@ -1322,9 +1238,9 @@
     {
         "id": "1b241560b82c493e",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 10",
+        "name": "debug 4",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1334,18 +1250,18 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 240,
-        "y": 820,
+        "y": 340,
         "wires": []
     },
     {
         "id": "fae7d158c10a1112",
         "type": "mysql",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "mydb": "0b4c50e32bf6a5fa",
         "name": "",
         "x": 1470,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "2eb5620047407a60"
@@ -1355,9 +1271,9 @@
     {
         "id": "8a2165ff6bbccbd2",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 11",
+        "name": "debug 5",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1367,13 +1283,13 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 400,
-        "y": 820,
+        "y": 340,
         "wires": []
     },
     {
         "id": "dd3cf7b04f827adc",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "前日耗材查詢",
         "func": "let reportID = msg.payload.insertId;\nlet materials = msg._next.materials;\nlet projectID = msg.dailyReport.project_id;\nlet reportDate = msg.dailyReport.report_date;\n\n// 計算前一天日期（格式為 yyyy-mm-dd）\nlet today = new Date(msg.dailyReport.report_date);  // 從使用者填的日期推\ntoday.setDate(today.getDate() - 1);\nlet year = today.getFullYear();\nlet month = String(today.getMonth() + 1).padStart(2, '0');\nlet day = String(today.getDate()).padStart(2, '0');\nlet prevDate = `${year}-${month}-${day}`;\n\n// 每個材料都查詢昨天的累積量\nlet sqlStatements = [];\n\nfor (let i = 0; i < materials.length; i++) {\n  let itemId = materials[i].id;\n\n  let sql = `\n    SELECT cpl.quantity_total\n    FROM construction_progress_logs cpl\n    JOIN daily_reports dr ON cpl.report_id = dr.id\n    WHERE cpl.construction_item_id = '${itemId}'\n      AND dr.project_id = '${projectID}'\n      AND dr.report_date < '${reportDate}'\n    ORDER BY dr.report_date DESC, cpl.created_at DESC\n    LIMIT 1;`;\n\n  sqlStatements.push(sql.trim());\n}\n\nmsg.topic = sqlStatements.join(\" \");\nmsg.reportID = reportID;\nreturn msg;\n",
@@ -1384,7 +1300,7 @@
         "finalize": "",
         "libs": [],
         "x": 240,
-        "y": 760,
+        "y": 280,
         "wires": [
             [
                 "8a2158e7d8612519",
@@ -1395,12 +1311,12 @@
     {
         "id": "8a2158e7d8612519",
         "type": "mysql",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "mydb": "0b4c50e32bf6a5fa",
         "name": "",
         "x": 410,
-        "y": 760,
+        "y": 280,
         "wires": [
             [
                 "9343b0349b42f160",
@@ -1411,9 +1327,9 @@
     {
         "id": "9343b0349b42f160",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 12",
+        "name": "debug 6",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -1423,13 +1339,13 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 560,
-        "y": 820,
+        "y": 340,
         "wires": []
     },
     {
         "id": "7755e3ccdd82eb94",
         "type": "inject",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "",
         "props": [
@@ -1449,7 +1365,7 @@
         "payload": "{\"reportDate\":\"2025-04-21\",\"projectId\":1,\"weatherMorning\":\"晴\",\"weatherAfternoon\":\"晴\",\"progressPlanned\":10,\"progressActual\":10,\"materialsUsedToday\":[{\"id\":1,\"name\":\"工程告示牌及工地標誌，工程告示牌\",\"unit\":\"式\",\"is_special\":\"否\",\"qty\":10,\"note\":\"\"}],\"hasSpecialTech\":\"是\",\"hasPreworkEducation\":\"是\",\"newWorkerInsuranceStatus\":\"是\",\"checkedPPE\":\"是\",\"testRecords\":\"\",\"notifySubcontractors\":\"\",\"importantNotes\":\"\",\"otherNotes\":\"\"}",
         "payloadType": "json",
         "x": 750,
-        "y": 700,
+        "y": 220,
         "wires": [
             []
         ]
@@ -1457,7 +1373,7 @@
     {
         "id": "a00490dea518a567",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "前日累計",
         "func": "// 若只有一筆結果，包成二維陣列以統一結構\nif (!Array.isArray(msg.payload[0])) {\n    msg.payload = [msg.payload];\n}\n\nmsg.topic = \"\";\n\nfor (let i = 0; i < msg.payload.length; i++) {\n    // 取得昨天的累計量（若查不到設為 0）\n    let yesterdayTotal = 0;\n    if (\n        Array.isArray(msg.payload[i]) &&\n        msg.payload[i].length > 0 &&\n        msg.payload[i][0].quantity_total != null\n    ) {\n        yesterdayTotal = parseFloat(msg.payload[i][0].quantity_total) || 0;\n    }\n\n    // 今天的數量\n    let todayQty = parseFloat(msg._next.materials[i].qty) || 0;\n\n    // 新累計量\n    let newTotal = yesterdayTotal + todayQty;\n\n    // 欄位資料\n    const itemId = msg._next.materials[i].id;\n    const reportId = msg.reportID;\n\n    // 備註處理特殊字元\n    let remark = msg._next.materials[i].note || ' ';\n    remark = remark.replace(/'/g, \"''\");\n\n    // 組合 SQL（含 created_at）\n    msg.topic += `\n        INSERT INTO construction_progress_logs \n        (construction_item_id, report_id, quantity_today, quantity_total, remark, created_at)\n        VALUES ('${itemId}', '${reportId}', '${todayQty}', '${newTotal}', '${remark}', NOW());\n    `;\n}\n\nreturn msg;\n",
@@ -1468,7 +1384,7 @@
         "finalize": "",
         "libs": [],
         "x": 560,
-        "y": 760,
+        "y": 280,
         "wires": [
             [
                 "6f53c3228995cf59",
@@ -1479,12 +1395,12 @@
     {
         "id": "6f53c3228995cf59",
         "type": "mysql",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "mydb": "0b4c50e32bf6a5fa",
         "name": "",
         "x": 710,
-        "y": 760,
+        "y": 280,
         "wires": [
             [
                 "41c85a1c5880656e"
@@ -1494,7 +1410,7 @@
     {
         "id": "0be00462a3727e08",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "查詢有無相同報表",
         "func": "var rowData =  msg.payload;\nmsg.rowData = rowData;\nif (msg.topic === \"createDailyData\") {\n    const projectId = msg.payload.projectId;\n    const reportDate = msg.payload.reportDate;\n\n    msg.topic = \"SELECT id FROM daily_reports WHERE project_id = ? AND report_date = ?\";\n    msg.payload = [projectId, reportDate];\n    msg.checkingDuplicate = true;\n    return msg;\n}",
@@ -1505,7 +1421,7 @@
         "finalize": "",
         "libs": [],
         "x": 950,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "f8290f3eb82e8e86"
@@ -1515,12 +1431,12 @@
     {
         "id": "f8290f3eb82e8e86",
         "type": "mysql",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "mydb": "0b4c50e32bf6a5fa",
         "name": "",
         "x": 1130,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "87cef5659a5ed34f"
@@ -1530,7 +1446,7 @@
     {
         "id": "2eb5620047407a60",
         "type": "link out",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "link out 1",
         "mode": "link",
@@ -1538,20 +1454,20 @@
             "e2a4df7301035b77"
         ],
         "x": 1575,
-        "y": 620,
+        "y": 140,
         "wires": []
     },
     {
         "id": "e2a4df7301035b77",
         "type": "link in",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "link in 1",
         "links": [
             "2eb5620047407a60"
         ],
         "x": 115,
-        "y": 760,
+        "y": 280,
         "wires": [
             [
                 "dd3cf7b04f827adc",
@@ -1562,7 +1478,7 @@
     {
         "id": "c292ac3a471941d4",
         "type": "link out",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "link out 2",
         "mode": "link",
@@ -1570,13 +1486,13 @@
             "b50ae17b2da38114"
         ],
         "x": 1415,
-        "y": 660,
+        "y": 180,
         "wires": []
     },
     {
         "id": "b50ae17b2da38114",
         "type": "link in",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "link in 2",
         "links": [
@@ -1584,7 +1500,7 @@
             "13ac78999b06fa11"
         ],
         "x": 645,
-        "y": 580,
+        "y": 100,
         "wires": [
             [
                 "ebfcffea5f99d3e9"
@@ -1594,7 +1510,7 @@
     {
         "id": "d6b3511cf69a7e60",
         "type": "change",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "projectInfo",
         "rules": [
@@ -1612,7 +1528,7 @@
         "to": "",
         "reg": false,
         "x": 590,
-        "y": 620,
+        "y": 140,
         "wires": [
             [
                 "ebfcffea5f99d3e9"
@@ -1622,9 +1538,9 @@
     {
         "id": "c12294eb9e9490e4",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
-        "name": "debug 13",
+        "name": "debug 7",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1634,13 +1550,13 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 700,
-        "y": 820,
+        "y": 340,
         "wires": []
     },
     {
         "id": "41c85a1c5880656e",
         "type": "function",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "填寫成功",
         "func": "msg.topic = \"dailyReportSuccess\"\nreturn msg;",
@@ -1651,7 +1567,7 @@
         "finalize": "",
         "libs": [],
         "x": 860,
-        "y": 760,
+        "y": 280,
         "wires": [
             [
                 "13ac78999b06fa11"
@@ -1661,7 +1577,7 @@
     {
         "id": "13ac78999b06fa11",
         "type": "link out",
-        "z": "87a35e934b9e3dd9",
+        "z": "f5b5c58865740524",
         "g": "cd9d63481420f626",
         "name": "link out 3",
         "mode": "link",
@@ -1669,31 +1585,31 @@
             "b50ae17b2da38114"
         ],
         "x": 955,
-        "y": 760,
+        "y": 280,
         "wires": []
     },
     {
-        "id": "46da6534a6042da4",
-        "type": "debug",
-        "z": "87a35e934b9e3dd9",
-        "name": "debug 14",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "true",
-        "targetType": "full",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 620,
-        "y": 480,
-        "wires": []
+        "id": "124c7b17e65b8ec5",
+        "type": "ui-control",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "",
+        "ui": "0b56277067a47c7e",
+        "events": "all",
+        "x": 160,
+        "y": 100,
+        "wires": [
+            [
+                "c74bcc5d27c9f1a2"
+            ]
+        ]
     },
     {
-        "id": "35c4400e51bc2f42",
+        "id": "4919fbca6f85b9a5",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
-        "name": "16",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "debug 1",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1702,15 +1618,217 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 790,
-        "y": 1000,
+        "x": 580,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "c74bcc5d27c9f1a2",
+        "type": "function",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "查詢",
+        "func": "msg.topic = \"SELECT \\\n   dr.id AS report_id, \\\n   dr.project_id, \\\n   p.name AS project_name, \\\n   p.contractor AS contractor, \\\n   CAST(DATE_FORMAT(p.start_date, '%Y-%m-%d') AS CHAR) AS start_date,\\\n   CAST(DATE_FORMAT(p.end_date, '%Y-%m-%d') AS CHAR) AS end_date,\\\n   CAST(DATE_FORMAT(dr.report_date, '%Y-%m-%d') AS CHAR) AS report_date,\\\n   dr.weekday, \\\n   dr.weather_morning, \\\n   dr.weather_afternoon, \\\n   dr.planned_progress, \\\n   dr.actual_progress, \\\n   dr.other_notes, \\\n   dr.test_records, \\\n   dr.\tnotify_subcontractors, \\\n   dr.\timportant_notes, \\\n \\\n   cpl.construction_item_id, \\\n   ci.name AS item_name, \\\n   ci.unit, \\\n   ci.contract_quantity, \\\n   ci.is_special, \\\n   cpl.quantity_today, \\\n   cpl.quantity_total, \\\n   cpl.remark \\\n \\\nFROM daily_reports dr \\\nLEFT JOIN projects p ON dr.project_id = p.id \\\nLEFT JOIN construction_progress_logs cpl ON dr.id = cpl.report_id \\\nLEFT JOIN construction_items ci ON cpl.construction_item_id = ci.id \\\n \\\nORDER BY dr.report_date DESC, dr.id DESC;\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 100,
+        "wires": [
+            [
+                "efe9475147a9d1a4"
+            ]
+        ]
+    },
+    {
+        "id": "efe9475147a9d1a4",
+        "type": "mysql",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "mydb": "0b4c50e32bf6a5fa",
+        "name": "",
+        "x": 430,
+        "y": 100,
+        "wires": [
+            [
+                "d40a73f5251d7b18",
+                "4919fbca6f85b9a5"
+            ]
+        ]
+    },
+    {
+        "id": "a017cd6518d796e0",
+        "type": "inject",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "name",
+                "v": "填寫每日報表",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0.5",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 140,
+        "wires": [
+            [
+                "c74bcc5d27c9f1a2"
+            ]
+        ]
+    },
+    {
+        "id": "8828227c20361698",
+        "type": "ui-template",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "group": "d09b4e05ca8fe220",
+        "page": "",
+        "ui": "",
+        "name": "查看報表",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "head": "",
+        "format": "<template>\n    <v-container class=\"d-flex justify-center\">\n        <v-card elevation=\"3\" width=\"100%\">\n            <v-card-title class=\"text-h6 font-weight-bold\">\n                每日報表清單\n            </v-card-title>\n            <v-card-text>\n                <v-row>\n                    <v-col v-for=\"(reportItem, i) in alreadySaveFrom\" :key=\"i\" cols=\"12\" sm=\"6\" md=\"4\">\n                        <v-card class=\"pa-3 hoverable\" elevation=\"2\" style=\"cursor: pointer; border-radius: 12px;\"\n                            @click=\"openDetailDialog(reportItem)\">\n                            <v-card-title class=\"text-subtitle-1 font-weight-bold\">\n                                {{ reportItem.projectName }}\n                            </v-card-title>\n\n                            <v-card-subtitle class=\"text-body-2 grey--text\">\n                                {{ formatDate(reportItem.reportDate) }}\n                            </v-card-subtitle>\n\n                            <v-card-text class=\"text-body-2\">\n                                材料紀錄數量：{{ reportItem.reports.length }}\n                            </v-card-text>\n                        </v-card>\n                    </v-col>\n                </v-row>\n            </v-card-text>\n        </v-card>\n\n\n        <!-- 詳細對話框 -->\n        <v-dialog v-model=\"detailDialog\" max-width=\"1000\">\n            <v-card>\n                <v-card-title class=\"text-h6 font-weight-bold\">\n                    每日報表詳細資訊\n                </v-card-title>\n\n                <v-card-text v-if=\"detailItem\">\n                    <!--基本資訊 -->\n                    <h3 class=\"section-title\">基本資訊</h3>\n                    <v-row dense>\n                        <v-col cols=\"12\" sm=\"6\"><strong>工程名稱：</strong>{{ detailItem.projectName }}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>承接公司名稱：</strong>{{ detailItem.contractor }}</v-col>\n                        <v-col cols=\"12\" sm=\"12\"><strong>日期：</strong>{{ formatDate(detailItem.reportDate) + \" \" +\n                            detailItem.weekday}}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>開工日期：</strong>{{ formatDate(detailItem.start_date)}}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>完工日期：</strong>{{ formatDate(detailItem.end_date)}}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>上午天氣：</strong>{{ detailItem.weather_morning }}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>下午天氣：</strong>{{ detailItem.weather_afternoon }}</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>預定進度：</strong>{{ detailItem.planned_progress }}%</v-col>\n                        <v-col cols=\"12\" sm=\"6\"><strong>實際進度：</strong>{{ detailItem.actual_progress }}%</v-col>\n                    </v-row>\n\n                    <!--材料使用清單 -->\n                    <h3 class=\"section-title mt-6\">材料使用清單</h3>\n                    <v-data-table v-if=\"detailItem && Array.isArray(detailItem.reports) && detailItem.reports.length\"\n                        :headers=\"tableHeaders\" :items=\"detailItem.reports\" :items-per-page=\"100\" class=\"elevation-1\"\n                        density=\"compact\" hide-default-footer>\n                        <template #item.remark=\"{ item }\">\n                            {{ item.remark || '' }}\n                        </template>\n                    </v-data-table>\n                    <div v-else class=\"text-grey\">尚無材料使用資料。</div>\n\n                    <!-- 其他備註事項 -->\n                    <h3 class=\"section-title mt-6\">其他備註事項</h3>\n                    <v-row dense>\n                        <v-col cols=\"12\"><strong>其他事項：</strong>{{ detailItem.other_notes || '無' }}</v-col>\n                        <v-col cols=\"12\"><strong>施工試驗紀錄：</strong>{{ detailItem.test_records || '無' }}</v-col>\n                        <v-col cols=\"12\"><strong>通知協力廠商：</strong>{{ detailItem.notify_subcontractors || '無' }}</v-col>\n                        <v-col cols=\"12\"><strong>重要事項：</strong>{{ detailItem.important_notes || '無' }}</v-col>\n                    </v-row>\n                </v-card-text>\n\n                <v-card-actions>\n                    <v-btn color=\"green\" class=\"white--text\" @click=\"exportXLSX\">匯出 EXCEL</v-btn>\n                    <v-btn color=\"red\" class=\"white--text\" @click=\"exportPDF\">匯出 PDF</v-btn>\n                    <v-spacer></v-spacer>\n                    <v-btn text=\"關閉\" @click=\"detailDialog = false\">關閉</v-btn>\n                </v-card-actions>\n            </v-card>\n        </v-dialog>\n\n\n\n    </v-container>\n</template>\n\n<script>\n    export default {\n        data() {\n            return {\n                alreadySaveFrom: [],\n                detailDialog: false,\n                detailItem: null,\n                tableHeaders: [\n                    { title: '項目名稱', key: 'workItem' },\n                    { title: '單位', key: 'unit' },\n                    { title: '契約數量', key: 'contract_quantity' },\n                    { title: '本日數量', key: 'todayQuantity' },\n                    { title: '前日累計', key: 'prevTotalQuantity' },\n                    { title: '截至今日', key: 'totalQuantity' },\n                    { title: '備註', key: 'remark' }\n                ]\n            };\n        },\n        mounted() {\n            this.$socket.on(\"msg-input:\" + this.id, (msg) => {\n                switch (msg.topic) {\n                    case \"checkDailyReport\":\n                        // console.log(msg.payload);\n                        this.alreadySaveFrom = msg.payload.map(report => ({\n                            projectName: report.project_name,\n                            contractor: report.contractor,\n                            reportDate: report.report_date,\n                            start_date: report.start_date,\n                            end_date: report.end_date,\n                            weekday: report.weekday,\n                            weather_morning: report.weather_morning,\n                            weather_afternoon: report.weather_afternoon,\n                            planned_progress: report.planned_progress,\n                            actual_progress: report.actual_progress,\n                            other_notes: report.other_notes,\n                            test_records: report.test_records,\n                            notify_subcontractors: report.notify_subcontractors,\n                            important_notes: report.important_notes,\n                            reports: report.materials.map(m => ({\n                                workItem: m.item_name,\n                                contract_quantity: m.contract_quantity,\n                                unit: m.unit,\n                                todayQuantity: m.quantity_today,\n                                totalQuantity: m.quantity_total,\n                                prevTotalQuantity: m.quantity_total - m.quantity_today,\n                                is_special: m.is_special,\n                                remark: m.remark || \" \"\n                            }))\n                        }));\n                        console.log(this.alreadySaveFrom)\n                        break;\n\n                    case \"download\":\n                        this.download(msg);\n                        break;\n                }\n\n                if (msg._client?.socketId !== this.$socket.id) return;\n            });\n        },\n        methods: {\n            openDetailDialog(item) {\n                this.detailItem = item;\n                this.detailDialog = true;\n            },\n            exportXLSX() {\n                if (!this.detailItem || !this.detailItem.reports.length) return;\n\n                const selectedDate = this.detailItem.reportDate;\n                this.send({\n                    topic: \"generate-excel\",\n                    payload: {\n                        date: selectedDate,\n                        data: this.detailItem.reports,\n                        projectName: this.detailItem.projectName\n                    }\n                });\n            },\n            exportPDF() {\n                if (!this.detailItem) return;\n\n                const selectedDate = this.detailItem.reportDate;\n\n                // 組合完整的報表資料\n                const fullReport = {\n                    projectName: this.detailItem.projectName,\n                    contractor: this.detailItem.contractor,\n                    reportDate: selectedDate,\n                    weekday: this.detailItem.weekday,\n                    start_date: this.detailItem.start_date,\n                    end_date: this.detailItem.end_date,\n                    weatherMorning: this.detailItem.weather_morning,\n                    weatherAfternoon: this.detailItem.weather_afternoon,\n                    plannedProgress: this.detailItem.planned_progress,\n                    actualProgress: this.detailItem.actual_progress,\n                    otherNotes: this.detailItem.other_notes,\n                    testRecords: this.detailItem.test_records,\n                    notifySubcontractors: this.detailItem.notify_subcontractors,\n                    importantNotes: this.detailItem.important_notes,\n                    materials: this.detailItem.reports.map(m => ({\n                        itemName: m.workItem,\n                        contract_quantity: m.contract_quantity,\n                        unit: m.unit,\n                        todayQuantity: m.todayQuantity,\n                        prevTotalQuantity: m.prevTotalQuantity,\n                        totalQuantity: m.totalQuantity,\n                        is_special: m.is_special,\n                        remark: m.remark\n                    }))\n                };\n\n                this.send({\n                    topic: \"generate-pdf\",\n                    payload: fullReport\n                });\n            },\n            download(msg) {\n                if (!msg.filename) return;\n                const filename = msg.filename.split(/[\\\\/]/).pop();\n                const fileUrl = `http://127.0.0.1:1880/data/${filename}`;\n                const link = document.createElement(\"a\");\n                link.href = fileUrl;\n                link.setAttribute(\"download\", filename);\n                document.body.appendChild(link);\n                link.click();\n                document.body.removeChild(link);\n            },\n            formatDate(dateStr) {\n                const d = new Date(dateStr);\n                return isNaN(d) ? dateStr : d.toISOString().split(\"T\")[0];\n            },\n            toYesNo(value) {\n                return value == 1 ? '是' : '否';\n            },\n            insuranceStatus(value) {\n                if (value == 1) return '有';\n                if (value == 0) return '無';\n                if (value == 2) return '無新進人員';\n                return '未填寫';\n            },\n        }\n    };\n</script>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 700,
+        "y": 100,
+        "wires": [
+            [
+                "c2b2bfefb22e1afd",
+                "35c4400e51bc2f42"
+            ]
+        ]
+    },
+    {
+        "id": "d40a73f5251d7b18",
+        "type": "function",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "處理",
+        "func": "let raw = msg.payload;\nlet result = {};\nlet output = [];\n\nfor (let row of raw) {\n    const key = row.report_id;\n\n    if (!result[key]) {\n        result[key] = {\n            report_id: row.report_id,\n            project_id: row.project_id,\n            project_name: row.project_name,\n            contractor: row.contractor,\n            start_date : row.start_date,\n            end_date: row.end_date,\n            report_date: new Date(row.report_date).toISOString().split(\"T\")[0], // yyyy-mm-dd\n            weekday: row.weekday,\n            weather_morning: row.weather_morning,\n            weather_afternoon: row.weather_afternoon,\n            planned_progress: row.planned_progress,\n            actual_progress: row.actual_progress,\n\n            // 新增的報表欄位\n            other_notes: row.other_notes,\n            test_records: row.test_records,\n            notify_subcontractors: row.notify_subcontractors,\n            important_notes: row.important_notes,\n\n            materials: []\n        };\n    }\n\n    // 若有材料資料才加入（有些報表可能沒有材料）\n    if (row.construction_item_id) {\n        result[key].materials.push({\n            item_id: row.construction_item_id,\n            item_name: row.item_name,\n            unit: row.unit,\n            contract_quantity:row.contract_quantity,\n            is_special:row.is_special,\n            quantity_today: row.quantity_today,\n            quantity_total: row.quantity_total,\n            remark: row.remark\n        });\n    }\n}\n\noutput = Object.values(result);\n\nmsg.payload = output;\nmsg.topic = \"checkDailyReport\";\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 100,
+        "wires": [
+            [
+                "8828227c20361698",
+                "8f643137db211451"
+            ]
+        ]
+    },
+    {
+        "id": "8f643137db211451",
+        "type": "debug",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "debug 2",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 700,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "00663ff20eb3567b",
+        "type": "function",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "輸出PDF",
+        "func": "const PDFDocument = global.get(\"PDFDocument\");\nconst fs = global.get(\"fs\");\n\nconst date = msg.payload.reportDate;\nconst filename = `施工日誌_${date}.pdf`;\nconst filepath = `C:/Users/user/.node-red/static/data/${filename}`;\n\nconst doc = new PDFDocument({ size: \"A4\", margin: 40 });\ndoc.registerFont(\"kai\", \"C:/Users/User/.node-red/fonts/kaiu.ttf\");\ndoc.font(\"kai\");\ndoc.lineWidth(0.6);\n\n//頁面高度跟底部\nconst pageHeight = doc.page.height;\nconst bottomMargin = 60;\nconst maxY = pageHeight - bottomMargin;\n\nvar pageNumber = 1; // 起始頁碼\n\n// 畫標題與表頭\nfunction drawHeader(weatherMorning, weatherAfternoon, reportDate, weekday) {\n    [233.7, 233.8, 233.9, 234, 234.1, 234.2, 234.3].forEach(x => doc.fontSize(16).text(\"公共工程施工日誌\", x, 70));\n    doc.fontSize(8);\n\n    // 氣象\n    doc.text(\"表報編號：\", 30, 87.5);\n    doc.text(\"本日天氣：上午：\" + weatherMorning + \"　下午：\" + weatherAfternoon, 100, 87.5);\n\n    // 將日期格式化為：2025年04月15日\n    const dateText = formatDateWithChinese(reportDate, weekday);\n\n    // 日期\n    doc.text(\"填表日期：\" + dateText, 400, 87.5);\n}\n\nfunction formatDateWithChinese(dateInput, weekday = \"\") {\n    const d = new Date(dateInput);\n    if (isNaN(d)) return \"\";\n    const year = d.getFullYear();\n    const month = String(d.getMonth() + 1).padStart(2, \"0\");\n    const day = String(d.getDate()).padStart(2, \"0\");\n    return `${year}年${month}月${day}日${weekday ? `(${weekday})` : \"\"}`;\n}\n\n\ndrawHeader(\n    msg.payload.weatherMorning,\n    msg.payload.weatherAfternoon,\n    msg.payload.reportDate,\n    msg.payload.weekday\n);\n\n// === 通用參數 ===\nconst startX = 30, startY = 97, totalWidth = 535, rowHeight = 16, fontSize = 8, lineGap = 0;\nconst leftColWidth = 267.5, rightColWidth = 267.5, leftSubColWidth = 133, rightSubColWidth = 133;\ndoc.fontSize(fontSize);\n\n// === 共用函式 ===\nfunction drawRow(y, options) {\n    const {\n        colWidths = null,\n        xPositions = null,\n        labels = [],\n        offsets = [],\n        height = rowHeight,\n        drawBottomLine = true,\n        align = 'center',\n        fontSize = doc._fontSize ?? 8\n    } = options;\n\n    let xList = [];\n    if (xPositions) {\n        xList = [...xPositions];\n    } else if (colWidths) {\n        let x = startX;\n        xList.push(x);\n        for (let w of colWidths) {\n            x += w;\n            xList.push(x);\n        }\n    } else {\n        throw new Error(\"drawRow 需要 colWidths 或 xPositions\");\n    }\n\n    doc.rect(xList[0], y, xList[xList.length - 1] - xList[0], height).stroke();\n    for (let i = 1; i < xList.length - 1; i++) {\n        doc.moveTo(xList[i], y).lineTo(xList[i], y + height).stroke();\n    }\n    if (drawBottomLine) {\n        doc.moveTo(xList[0], y + height).lineTo(xList[xList.length - 1], y + height).stroke();\n    }\n\n    for (let i = 0; i < labels.length; i++) {\n        try {\n            // 1. 安全轉字串（避免傳入 undefined）\n            const labelRaw = labels[i];\n            const label = (typeof labelRaw === 'string') ? labelRaw : (labelRaw?.toString?.() ?? '');\n\n            // 2. 安全取得 offset\n            const offsetRaw = offsets[i];\n            const offset = Number.isFinite(offsetRaw) ? offsetRaw : 0;\n\n            // 3. 安全取得欄位位置\n            const xStart = xList[i];\n            const xEnd = xList[i + 1];\n            if (typeof xStart !== 'number' || typeof xEnd !== 'number') {\n                throw new Error(`xStart 或 xEnd 為無效數字：xList[${i}] = ${xStart}, xList[${i + 1}] = ${xEnd}`);\n            }\n            const colWidth = xEnd - xStart;\n\n            // 4. 計算位置並寫文字\n            let textX = xStart;\n            const textY = y + (height - fontSize) / 2;\n            if (align === 'center') {\n                const textWidth = doc.widthOfString(label);\n                textX = xStart + (colWidth - textWidth) / 2 + offset;\n            } else {\n                textX = xStart + offset;\n            }\n\n            // 5. 寫入文字\n            doc.text(label, textX, textY);\n        } catch (err) {\n            doc.text(`[ERR]`, startX, y + i * 10); // 簡單標記錯誤\n            node.error(`drawRow 第 ${i} 欄錯誤：${err.message}`);\n        }\n    }\n\n    return xList;\n}\n\n\n//畫格子且讓字置中\nfunction drawRowTextCenter(y, colWidths, labels = [], offsets = []) {\n    let x = startX;\n    const xList = [x];\n    for (let w of colWidths) {\n        x += w;\n        xList.push(x);\n    }\n\n    // 畫外框\n    doc.rect(startX, y, totalWidth, rowHeight).stroke();\n\n    // 畫欄位分隔線\n    for (let i = 1; i < xList.length; i++) {\n        doc.moveTo(xList[i], y).lineTo(xList[i], y + rowHeight).stroke();\n    }\n    // 畫下邊線\n    doc.moveTo(startX, y + rowHeight).lineTo(startX + totalWidth, y + rowHeight).stroke();\n\n    // 寫入文字並置中\n    for (let i = 0; i < labels.length; i++) {\n        const colX = xList[i];\n        const colWidth = colWidths[i];\n        const offset = offsets[i] ?? 0;\n\n        doc.text(labels[i], colX + offset, y + 5, {\n            width: colWidth,\n            align: 'center'\n        });\n    }\n}\n\nfunction drawAutoHeightRow(y, colWidths, texts, offsets = [], lineGap = 0, fontSize = 8, estimateOnly = false, alignLeftIfMultiline = []) {\n    let x = startX;\n    const xList = [x];\n    for (let w of colWidths) {\n        x += w;\n        xList.push(x);\n    }\n\n    let maxLineCount = 1;\n    const lineCounts = [];\n\n    for (let i = 0; i < texts.length; i++) {\n        const offset = offsets[i] ?? 2;\n        const width = colWidths[i] - offset * 2;\n\n        const text = texts[i] || '';\n        const textHeight = doc.heightOfString(text, {\n            width,\n            lineGap\n        });\n\n        // 這裡保留 Math.ceil() 確保高度足夠，但接下來再多加條件避免誤判\n        const lineCount = Math.ceil(textHeight / (fontSize + lineGap));\n\n        lineCounts.push(lineCount);\n        if (lineCount > maxLineCount) maxLineCount = lineCount;\n    }\n\n    const rowH = (fontSize + lineGap) * maxLineCount + 1;\n    if (estimateOnly) return rowH;\n\n    // 畫外框與欄位分隔線\n    doc.rect(startX, y, totalWidth, rowH).stroke();\n    for (let i = 1; i < xList.length; i++) {\n        doc.moveTo(xList[i], y).lineTo(xList[i], y + rowH).stroke();\n    }\n    doc.moveTo(startX, y + rowH).lineTo(startX + totalWidth, y + rowH).stroke();\n\n    // 寫入文字（確保「允許」+「實際超過一行」才置左）\n    for (let i = 0; i < texts.length; i++) {\n        const offset = offsets[i] ?? 2;\n        const colX = xList[i];\n        const colWidth = colWidths[i];\n        const textWidth = colWidth - offset * 2;\n\n        const text = texts[i] || '';\n        let align = 'center';\n\n        // ✅ 必須同時符合「在允許清單內」與「實際行數 > 2」才置左\n        if (alignLeftIfMultiline.includes(i) && lineCounts[i] > 2) {\n            align = 'left';\n        }\n\n        doc.text(text, colX + offset, y + 2, {\n            width: textWidth,\n            align,\n            lineGap\n        });\n    }\n\n    return rowH;\n}\n\n//用於繪製粗框線的特定施工項目的。\nfunction drawFramedTableBlock(dataList, colWidths, colOffsets, sectionTitle, options = {}) {\n    const headerFontSize = options.headerFontSize ?? 8;\n    const rowFontSize = options.rowFontSize ?? fontSize;\n    const rowLineGap = options.rowLineGap ?? lineGap;\n    const alignLeftIfMultiline = options.alignLeftIfMultiline ?? [0, 5];\n\n    const sectionHeader = [sectionTitle, \"\", \"\", \"\", \"\", \"\"];\n    let x = startX;\n    const xList = [x];\n    for (let w of colWidths) xList.push(x += w);\n\n    function drawHeaderRow(y, forceFixedHeight = null) {\n        const headerH = forceFixedHeight ?? drawAutoHeightRow(y, colWidths, sectionHeader, colOffsets, rowLineGap, headerFontSize, true);\n        doc.fontSize(headerFontSize).lineWidth(2);\n        doc.rect(startX, y, totalWidth, headerH).stroke();\n        doc.lineWidth(0.6);\n        for (let i = 1; i < xList.length; i++) {\n            doc.moveTo(xList[i], y).lineTo(xList[i], y + headerH).stroke();\n        }\n        doc.moveTo(startX, y + headerH).lineTo(startX + totalWidth, y + headerH).stroke();\n        for (let i = 0; i < sectionHeader.length; i++) {\n            const offset = colOffsets[i] ?? 5;\n            const width = colWidths[i] - 4;\n            doc.text(sectionHeader[i], xList[i] + offset, y + 2, { width, lineGap });\n        }\n        return headerH;\n    }\n\n\n    if (dataList.length === 0) {\n        dataList = [{\n            item: \"\",\n            unit: \"\",\n            contract_quantity: \"\",\n            todayQuantity: \"\",\n            totalQuantity: \"\",\n            note: \"\"\n        }];\n    }\n\n    let blockStartY = currentY;\n    let blockHeight = 0;\n\n    let headerH = drawHeaderRow(currentY);\n    currentY += headerH;\n    blockHeight += headerH;\n\n    doc.fontSize(rowFontSize);\n\n    for (let item of dataList) {\n        const values = Object.values(item);\n        const estHeight = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, true, alignLeftIfMultiline);\n        if (currentY + estHeight > maxY) {\n            doc.lineWidth(2);\n            doc.rect(startX, blockStartY, totalWidth, blockHeight).stroke();\n            drawPageNumber(pageNumber);\n            doc.addPage();\n            pageNumber++;\n            currentY = startY;\n            blockStartY = currentY;\n            blockHeight = 0;\n            headerH = drawHeaderRow(currentY, headerH);\n            currentY += headerH;\n            blockHeight += headerH;\n            doc.fontSize(rowFontSize);\n        }\n        const usedHeight = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, false, alignLeftIfMultiline);\n        currentY += usedHeight;\n        blockHeight += usedHeight;\n    }\n\n    doc.lineWidth(2);\n    doc.rect(startX, blockStartY, totalWidth, blockHeight).stroke();\n    doc.lineWidth(0.6);\n}\n\n//三種資料表的寫法合併\nfunction drawDynamicTableSection(dataList, colWidths, colOffsets, labels, options = {}) {\n    const rowFontSize = options.fontSize ?? 8;\n    const rowLineGap = options.lineGap ?? 0;\n    const alignLeftIfMultiline = options.alignLeftIfMultiline ?? [0, 5];\n    //沒數據的時候給一行空白資料列\n    const defaultEmptyRow = options.defaultEmptyRow ?? {\n        itemName: '',\n        unit: '',\n        contract_quantity: '',\n        todayQuantity: '',\n        totalQuantity: '',\n        remark: ''\n    };\n\n    const rowsToRender = (dataList.length > 0) ? dataList : [defaultEmptyRow];\n\n    for (let row of rowsToRender) {\n        const values = [\n            row.itemName,\n            row.unit,\n            row.contract_quantity,\n            row.todayQuantity,\n            row.totalQuantity,\n            row.remark\n        ];\n\n        const estimatedHeight = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, true, alignLeftIfMultiline);\n\n        if (currentY + estimatedHeight > maxY) {\n            drawPageNumber(pageNumber);\n            doc.addPage();\n            pageNumber++;\n            currentY = startY;\n\n            // 重畫表頭列\n            drawRow(currentY, {\n                colWidths,\n                labels,\n                offsets: colOffsets\n            });\n            currentY += rowHeight;\n        }\n\n        const heightUsed = drawAutoHeightRow(currentY, colWidths, values, colOffsets, rowLineGap, rowFontSize, false, alignLeftIfMultiline);\n        currentY += heightUsed;\n    }\n}\n\n//頁碼區塊\nfunction drawPageNumber(pageNumber) {\n    doc.fontSize(12).text(`-${pageNumber}-`, 0, doc.page.height - 55, {\n        width: doc.page.width,\n        align: \"center\"\n    });\n}\n\n// === 表格繪製 ===\ndoc.fontSize(8);\n\nconst colX = {\n    x0: startX,\n    x1: startX + leftSubColWidth,\n    x2: startX + leftColWidth,\n    x3: startX + leftColWidth + rightSubColWidth,\n    x4: startX + leftColWidth + rightColWidth,\n};\n\nconst colPositions = [\n    colX.x0, (colX.x0 + colX.x1) / 2, colX.x1, (colX.x1 + colX.x2) / 2,\n    colX.x2, (colX.x2 + colX.x3) / 2, colX.x3, (colX.x3 + colX.x4) / 2 + 15, colX.x4\n];\n\nconst projectText = msg.payload.projectName;\nconst companyText = msg.payload.contractor;\n// const projectText = \"臺中市西屯區市政北一路與惠中路口排水改善暨周邊人行道及附屬設施工程（第一期）\";\n// const companyText = \"安瑞環境科技股份有限公司（名稱過長範例用換行測試）\";\n\nconst maxWidthProject = leftColWidth - leftSubColWidth - 4;\nconst maxWidthCompany = rightColWidth - rightSubColWidth - 4;\n\nvar fontHeight = fontSize;\nvar paddingY = 1;\n\nconst projectHeight = doc.heightOfString(projectText, { width: maxWidthProject, lineGap });\nconst companyHeight = doc.heightOfString(companyText, { width: maxWidthCompany, lineGap });\n\nconst contentHeight = Math.max(projectHeight, companyHeight);\nlet dynamicHeight = contentHeight + paddingY * 2;\n\n// 當只有一行內容時進一步壓縮高度\nif (contentHeight <= fontHeight) {\n    dynamicHeight = fontHeight + paddingY * 2;\n}\n\nlet currentY = startY;\n\n// 畫格子與分隔線\ndoc.rect(startX, currentY, totalWidth, dynamicHeight).stroke();\ndoc.moveTo(colX.x1, currentY).lineTo(colX.x1, currentY + dynamicHeight).stroke();\ndoc.moveTo(colX.x2, currentY).lineTo(colX.x2, currentY + dynamicHeight).stroke();\ndoc.moveTo(colX.x3, currentY).lineTo(colX.x3, currentY + dynamicHeight).stroke();\n\n// 標題垂直置中（fontHeight 代表標題的實際字高）\nconst titleY = currentY + (dynamicHeight - fontHeight) / 2;\n\ndoc.text(\"工程名稱\", colX.x0 + 35, titleY);\ndoc.text(\"承攬廠商名稱\", colX.x2 + 35, titleY);\n\n// 內容文字（靠上顯示，避免底部空白）\ndoc.text(projectText, colX.x1 + 5, currentY + paddingY, {\n    width: maxWidthProject,\n    lineGap\n});\ndoc.text(companyText, colX.x3 + 2, currentY + paddingY, {\n    width: maxWidthCompany,\n    lineGap\n});\n\ncurrentY += dynamicHeight;\n// === 第二列（8 格） ===\ndrawRow(currentY, {\n    xPositions: colPositions,\n    labels: [\"核定工期\", \"9999天\", \"累計工期\", \"9999天\", \"剩餘工期\", \"9999天\", \"工期展延天數\", \"9999天\"],\n    offsets: [0, 0, 0, 0, 0, 0, 0, 0],\n    align: \"center\"\n});\ncurrentY += rowHeight; //增加行高\n\n// === 第三列（4 格） ===\ndrawRow(currentY, {\n    colWidths: [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n    labels: [\"開工日期\", formatDateWithChinese(msg.payload.start_date), \"完工日期\", formatDateWithChinese(msg.payload.end_date)],\n    offsets: [0, 0, 0, 0]\n});\n// drawRow(currentY, [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n//     [\"開工日期\", \"999年99月99日\", \"完工日期\", \"999年99月99日\"],\n//     [30, 20, 25, 25]\n// );\ncurrentY += rowHeight;\n\n// === 第四列（4 格） ===\ndrawRow(currentY, {\n    colWidths: [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n    labels: [\"預定進度(%)\", msg.payload.plannedProgress, \"實際進度(%)\", msg.payload.actualProgress],\n    offsets: [0, 0, 0, 0]\n});\n// drawRow(currentY, [leftSubColWidth, leftColWidth - leftSubColWidth, rightSubColWidth, rightColWidth - rightSubColWidth],\n//     [\"預定進度(%)\", \"100%\", \"實際進度(%)\", \"100%\"],\n//     [30, 20, 25, 25]\n// );\ncurrentY += rowHeight;\n\n// === 第五列（1 格） ===\ndrawRow(currentY, {\n    colWidths: [totalWidth],\n    labels: [\"一、依施工計畫書執行按圖施工概況（含約定之重要施工項目及完成數量等）：\"],\n    offsets: [5],\n    align: \"left\"\n});\ncurrentY += rowHeight;\n\n\n// === 施工項目 ===\n// 第六列：表頭\nvar tableColWidths = [118, 35, 82, 93, 93, 114];\nvar tableTextOffsets = [0, 0, 0, 0, 0, 0];\n\ndrawRow(currentY, {\n    colWidths: tableColWidths,\n    labels: [\"施工項目\", \"單位\", \"契約數量\", \"本日完成數量\", \"累計完成數量\", \"備註\"],\n    offsets: tableTextOffsets\n});\ncurrentY += rowHeight;\n\n// 第七列開始的施工項目資料列（動態列數、換頁）\nconst constructionProject = [];\nlet specialTableData = [];\n\nconst materialsRowData = msg.payload.materials || [];\n\nfor (let m of materialsRowData) {\n    const converted = {\n        itemName: m.itemName,\n        unit: m.unit,\n        contract_quantity: String(m.contract_quantity),\n        todayQuantity: String(m.todayQuantity),\n        totalQuantity: String(m.totalQuantity),\n        remark: m.remark || \"\"\n    };\n\n    if (m.is_special === 1) {\n        specialTableData.push(converted);\n    } else {\n        constructionProject.push(converted);\n    }\n}\n// const constructionProject = [\n//     { item: \"土方開挖\", unit: \"m³\", contract_quantity: \"100\", todayQuantity: \"10\", totalQuantity: \"70\", note: \"正常進行\" },\n//     { item: \"混凝土澆置（含模板、鋼筋）\", unit: \"m³\", contract_quantity: \"200\", todayQuantity: \"30\", totalQuantity: \"100\", note: \"雨天順延施工\" },\n//     // { item: \"道路回填\", unit: \"m³\", contract_quantity: \"50\", todayQuantity: \"5\", totalQuantity: \"40\", note: \"備註文字比較長，測試是否會換行並調整高度\" }\n// ];\ndrawDynamicTableSection(constructionProject, tableColWidths, tableTextOffsets, [\"施工項目\", \"單位\", \"契約數量\", \"本日完成數量\", \"累計完成數量\", \"備註\"]);\n\n//=== 特定項目資料列 ===\n// specialTableData = [\n//     { item: \"鋪設管道\", unit: \"m\", contract_quantity: \"300\", todayQuantity: \"20\", totalQuantity: \"200\", note: \"進度良好\" },\n//     { item: \"鋪設人行道\", unit: \"m²\", contract_quantity: \"100\", todayQuantity: \"10\", totalQuantity: \"70\", note: \"已完成部分\" },\n// ];\ndrawFramedTableBlock(specialTableData, tableColWidths, tableTextOffsets, \"營造業專業工程特定施工項目\", {\n    headerFontSize: 7,\n    rowFontSize: 8,\n    rowLineGap: 0,\n    alignLeftIfMultiline: [0, 5] // 可自定左對齊欄位\n});\n\n\n// === 工地材料管理概況 ===\ndrawRow(currentY, {\n    colWidths: [totalWidth],\n    labels: [\"二、工地材料管理概況（含約定之重要材料使用狀況及數量等）：\"],\n    offsets: [5],\n    align: \"left\"\n});\ncurrentY += rowHeight;\n\n//畫表頭\ndrawRow(currentY, {\n    colWidths: tableColWidths,\n    labels: [\"材料名稱\", \"單位\", \"契約數量\", \"本日使用數量\", \"累計使用數量\", \"備註\"],\n    offsets: tableTextOffsets\n});\ncurrentY += rowHeight;\n\nconst materials = [];\n// const materials = [\n//     { item: \"混凝土澆置（含模板、鋼筋）\", unit: \"m³\", contract_quantity: \"200\", todayQuantity: \"30\", totalQuantity: \"100\", remark: \"雨天順延施工\" },\n//     { item: \"道路回填\", unit: \"m³\", contract_quantity: \"50\", todayQuantity: \"5\", totalQuantity: \"40\", remark: \"備註文字比較長，測試是否會換行並調整高度\" },\n// ];\ndrawDynamicTableSection(materials, tableColWidths, tableTextOffsets, [\"材料名稱\", \"單位\", \"契約數量\", \"本日使用數量\", \"累計使用數量\", \"備註\"]);\n\n// === 工地人員及機具管理 ===\ndrawRow(currentY, {\n    colWidths: [totalWidth],\n    labels: [\"三、工地人員及機具管理（含約定之出工人數及機具使用情形及數量）：\"],\n    offsets: [5],\n    align: \"left\"\n});\ncurrentY += rowHeight;\n\n//格子寬度與字間距\ndrawRow(currentY, {\n    colWidths: tableColWidths,\n    labels: [\"工別\", \"本日人數\", \"累計人數\", \"機具名稱\", \"本日使用數量\", \"累計使用數量\"],\n    offsets: tableTextOffsets\n});\ncurrentY += rowHeight;\n\nconst personnelEquipmentManagement = [];\n// const personnelEquipmentManagement = [\n//     { item: \"挖土作業\", unit: \"5\", contract_quantity: \"20\", todayQuantity: \"挖土機\", totalQuantity: \"2\", note: \"8\" },\n// ];\n\ndrawDynamicTableSection(materials, tableColWidths, tableTextOffsets, [\"工別\", \"本日人數\", \"累計人數\", \"機具名稱\", \"本日使用數量\", \"累計使用數量\"]);\n\n// === 營造業專業工程特定施工項目應置之技術士種類、比率或人數標準表 ===\n// 先將線寬暫存下來\nconst originalLineWidth = doc._lineWidth;\n\n// 使用粗框線\ndoc.lineWidth(1);\n\n//給予主體高度以及判斷換頁\nvar blockHeight = 23;\nif (currentY + blockHeight > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\n// 繪製主框\ndoc.rect(startX, currentY, totalWidth, blockHeight).stroke();\n\n// 在框裡寫文字\nvar textLeftPadding = 5;\nvar contentText = \"四、本日施工項目是否有須依「營造業專業工程特定施工項目應置之技術士種類、比率或人數標準表」規定應設置技術士之專業工程：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 2, {\n    width: totalWidth\n});\n\n// 假設要畫的方框大小及線條粗細\nconst checkboxSize = 8;\ndoc.lineWidth(0.5);\n\n// 第一個方框 (□有)\nconst checkbox1X = startX + 480;  // 可以依需求微調\nconst checkbox1Y = currentY + 2;\n\n// 第二個方框 (□無)\nconst checkbox2X = checkbox1X + 20;\nconst checkbox2Y = checkbox1Y;\n\n// 畫「有」的空方框與文字\ndoc.rect(checkbox1X, checkbox1Y, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", checkbox1X + checkboxSize + 2, checkbox1Y);\n\n// 畫「無」的空方框與文字\ndoc.rect(checkbox2X, checkbox2Y, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", checkbox2X + checkboxSize + 2, checkbox2Y);\n\nconst noteText = \"(此項如勾選「有」，則應填寫後附「公共工程施工日誌之技術士簽章表」)\";\ndoc.text(noteText, startX + textLeftPadding, checkbox2Y + 10, {\n    width: totalWidth - 20\n});\ncurrentY += blockHeight;\n\n// === 施工前檢查事項 ===\nif (currentY + 31 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"五、工地職業安全衛生事項之督導、公共環境與安全之維護及其他工地行政事務：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 5);\ncontentText = \"  (ㄧ)施工前檢查事項：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 18);\ncontentText = \"   1.實施勤前教育(含工地預防災變及危害告知)：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 31);\n\ndoc.lineWidth(0.5);\n//勤前教育確認\n// 畫「有」的空方框與文字\ndoc.rect(215, currentY + 31, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", 215 + checkboxSize + 2, currentY + 31);\n\n// 畫「無」的空方框與文字\ndoc.rect(235, currentY + 31, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", 235 + checkboxSize + 2, currentY + 31);\n\ncontentText = \"   2.確認新進勞工是否提報勞工保險(或其他商業保險)資料及安全衛生教育訓練紀錄：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 44);\n\n// 「有」\ndoc.rect(345, currentY + 44, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", 345 + checkboxSize + 2, currentY + 44);\n\n// 「無」\ndoc.rect(365, currentY + 44, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", 365 + checkboxSize + 2, currentY + 44);\n\n// 「無新進員工」\ndoc.rect(385, currentY + 44, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無新進員工\", 385 + checkboxSize + 2, currentY + 44);\n\n//檢查勞工個人防護具\ncontentText = \"   3.檢查勞工個人防護具：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 57);\n\n// 「有」\ndoc.rect(140, currentY + 57, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"有\", 140 + checkboxSize + 2, currentY + 57);\n\n// 「無」\ndoc.rect(160, currentY + 57, checkboxSize, checkboxSize).stroke();\ndoc.fillColor(\"black\");\ndoc.text(\"無\", 160 + checkboxSize + 2, currentY + 57);\n\n\ncontentText = \"  (二)其他事項：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 70);\n\n// === 設定區 ===\nvar lineHeight = fontSize + lineGap;\nvar paragraphPadding = 10;\nvar otherNotesTextWidth = totalWidth - paragraphPadding * 2;\ndoc.fontSize(fontSize);\ndoc.lineWidth(1);\n\n// === 你的內容 ===\nconst otherNotes = msg.payload.otherNotes;\n\n// === 自訂：將文字根據欄寬分成多行 ===\nfunction breakTextToLinesByWidth(text, maxWidth, doc) {\n    const lines = [];\n    let currentLine = '';\n    for (let i = 0; i < text.length; i++) {\n        const char = text[i];\n        const testLine = currentLine + char;\n        const testWidth = doc.widthOfString(testLine);\n        if (testWidth > maxWidth) {\n            lines.push(currentLine);\n            currentLine = char;\n        } else {\n            currentLine = testLine;\n        }\n    }\n    if (currentLine) lines.push(currentLine);\n    return lines;\n}\n\nlet lines = breakTextToLinesByWidth(otherNotes, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nlet boxStartY = currentY;\ncurrentY += 96\nlet boxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 施工取樣試驗紀錄 ===\nif (currentY + 28 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"六、施工取樣試驗紀錄：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 1);\n\nconst testRecord = msg.payload.testRecords;\n\nlines = breakTextToLinesByWidth(testRecord, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nboxStartY = currentY;\ncurrentY += 14\nboxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 通知協力廠商辦理事項 ===\nif (currentY + 28 > maxY) {\n    drawPageNumber(pageNumber);\n\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"七、通知協力廠商辦理事項：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 1);\n\nconst vendorTask = msg.payload.notifySubcontractors;\n\nlines = breakTextToLinesByWidth(vendorTask, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nboxStartY = currentY;\ncurrentY += 14\nboxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 通知協力廠商辦理事項 ===\nif (currentY + 28 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\n\ncontentText = \"八、重要事項記錄：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 1);\n\nconst importantRecord = msg.payload.importantNotes;\n// const importantRecord = \"今日施工現場發現部分機具未妥善覆蓋，已通知承攬商限期改善，並完成區域警示標示。\" +\n//     \"因雨天地面濕滑，泥濘處應加設防滑墊或步道板，以防止勞工滑倒受傷。\" +\n//     \"此外建議下週加強臨時電線管理並補強危害標示。\";\n\nlines = breakTextToLinesByWidth(importantRecord, otherNotesTextWidth, doc);\n\n// === 初始化框線與記錄起點 ===\nboxStartY = currentY;\ncurrentY += 14\nboxStartX = startX;\n\n// === 寫入文字，並自動換頁 ===\nfor (let i = 0; i < lines.length; i++) {\n    // 換頁邏輯\n    if (currentY + lineHeight > maxY) {\n        drawPageNumber(pageNumber);\n        doc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n        boxStartY = currentY;\n    }\n\n    // 寫入文字\n    doc.text(lines[i], startX + paragraphPadding, currentY, {\n        width: otherNotesTextWidth\n    });\n    currentY += lineHeight;\n}\n\n//最後一頁畫框\ndoc.rect(boxStartX, boxStartY, totalWidth, currentY - boxStartY).stroke();\n\n// === 簽章 ===\nif (currentY + 14 > maxY) {\n    drawPageNumber(pageNumber);\n    doc.addPage();\n    pageNumber++;\n    currentY = startY;\n}\ncontentText = \"簽章：【工地主任】（註3）：\";\ndoc.text(contentText, startX + textLeftPadding, currentY + 2);\ndoc.rect(startX, currentY, totalWidth, 16).stroke();\ncurrentY += 16\n\n// === 備註區塊 ===\nconst remarks = 9;\ndoc.fontSize(7);\n\n// 註解文字陣列\nconst remarkLines = [\n    \"註：1.依營造業法第32條第1項第2款規定，工地主任應按日填報施工日誌\",\n    \"    2.本施工日誌格式僅供參考，惟原則應包含上開欄位，各機關亦得依工程性質及契約約定事項自行增訂之。\",\n    \"    3.本工程依營造業法第30條規定須置工地主任者，由工地主任簽章；依上開規定免置工地主任者，則由營造業法第32條第2項所定之人員簽章。廠商非屬營造業者，\",\n    \"    由工地負責人簽章。\",\n    \"    4.契約工期如有修正，應填修正後之契約工期，含展延工期及不計工期天數；如有依契約變更設計，預定進度及實際進度應填變更設計後計算之進度。\",\n    \"    5.上開重要事項記錄包含（1）主辦機關及監造單位指示（2）工地遇緊急異常狀況之通報處理情形（3）本日是否由專任工程人員督察按圖施工、解決施工技術問\",\n    \"    題等。\",\n    \"    6.上開施工前檢查事項所列工作應由職業安全衛生管理辦法第3條規定所置職業安全衛生人員於每日施工前辦理(檢查紀錄參考範例如附工地職業安全衛生施工前檢\",\n    \"    查紀錄表)，工地主任負責督導及確認該事項完成後於施工日誌填載。\",\n    \"    7.公共工程屬建築物者，請依內政部最新訂頒之「建築物施工日誌」填寫。\",\n];\n\n// 遍歷每一行文字並處理自動換頁\nfor (let i = 0; i < remarkLines.length; i++) {\n    if (currentY + remarks > maxY) {\n        drawPageNumber(pageNumber);\n        doc.fontSize(7);\n        doc.addPage();\n        pageNumber++;\n        currentY = startY;\n    }\n\n    const contentText = remarkLines[i];\n    doc.text(contentText, startX, currentY + 1);\n    currentY += remarks;\n}\n\n// 輸出 PDF\nconst stream = fs.createWriteStream(filepath);\ndoc.pipe(stream);\n\ndrawPageNumber(pageNumber);\ndoc.end();\n\nstream.on(\"finish\", () => {\n    msg.payload = { success: true };\n    msg.topic = \"download\";\n    msg.filename = filepath;\n    node.send(msg);\n});\n\ndoc.rect(startX, currentY, totalWidth, blockHeight).stroke();\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 960,
+        "y": 100,
+        "wires": [
+            [
+                "846be4bec50e0ed7"
+            ]
+        ]
+    },
+    {
+        "id": "c2b2bfefb22e1afd",
+        "type": "switch",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "",
+        "property": "topic",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "generate-pdf",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 830,
+        "y": 100,
+        "wires": [
+            [
+                "00663ff20eb3567b"
+            ]
+        ]
+    },
+    {
+        "id": "35c4400e51bc2f42",
+        "type": "debug",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "debug 3",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 140,
         "wires": []
     },
     {
         "id": "846be4bec50e0ed7",
         "type": "debug",
-        "z": "87a35e934b9e3dd9",
-        "name": "17",
+        "z": "c9cfaee5a59b0909",
+        "g": "fd8fb35107057710",
+        "name": "debug 4",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -1719,8 +1837,8 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1050,
-        "y": 960,
+        "x": 1100,
+        "y": 100,
         "wires": []
     }
 ]
