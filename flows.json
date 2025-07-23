@@ -934,7 +934,7 @@
         "type": "function",
         "z": "55d30d31a5f17410",
         "name": "解析excel",
-        "func": "const xlsx = global.get('xlsx');\nconst workbook = xlsx.read(msg.payload, { type: 'buffer' });\nconst sheetName = workbook.SheetNames[1];\nconst sheet = workbook.Sheets[sheetName];\nconst rawData = xlsx.utils.sheet_to_json(sheet, { defval: '' });\n\nconst result = [];\nlet currentMain = null;\nlet currentSection = null;\nlet currentItem = null;\nlet currentSubItem = null;\n\nfor (let row of rawData) {\n    const code = (row[\"OOOO\"] || '').toString().trim();\n    const desc = (row[\"__EMPTY\"] || '').toString().trim();\n\n    // 大項（壹、貳…）\n    if (code.match(/^[壹貳參肆伍陸柒捌玖拾]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n        if (currentMain) result.push(currentMain);\n\n        currentMain = { type: 'main', item: code, description: desc, children: [] };\n        currentSection = null;\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 分項（一、二…）\n    if (code.match(/^[一二三四五六七八九十]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n    \n        currentSection = {\n            type: 'section',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 細項（1、2…）\n    if (code.match(/^\\d+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n\n        currentItem = {\n            type: 'item',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentSubItem = null;\n        continue;\n    }\n\n    // 子細項（(1)、(2)…）\n    if (code.match(/^\\(\\d+\\)$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n\n        currentSubItem = {\n            type: 'subitem',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || ''\n        };\n        continue;\n    }\n\n    // 補充說明/備註\n    if (currentSubItem) {\n        if (row[\"__EMPTY\"]) currentSubItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentSubItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    } else if (currentItem) {\n        if (row[\"__EMPTY\"]) currentItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    }\n}\n\n// 收尾：處理最後一個subitem、item、section、main\nif (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\nif (currentItem && currentSection) currentSection.children.push(currentItem);\n\n// 如果分項本身有單價等資料，但底下沒有細項，要幫它補detail\nif (currentSection) {\n    if (\n        (!currentSection.children || !currentSection.children.length) &&\n        (currentSection.unit || currentSection.quantity || currentSection.unit_price || currentSection.total)\n    ) {\n        currentSection.children = [{\n            type: 'detail',\n            item: currentSection.item,\n            description: currentSection.description,\n            unit: currentSection.unit,\n            quantity: currentSection.quantity,\n            unit_price: currentSection.unit_price,\n            total: currentSection.total,\n            remark: currentSection.remark\n        }];\n        // 清空分項自己的資料\n        currentSection.unit = '';\n        currentSection.quantity = '';\n        currentSection.unit_price = '';\n        currentSection.total = '';\n        currentSection.remark = '';\n    }\n}\n\n// 一定要記得最後一個 main 也要 push!\nif (currentSection && currentMain) currentMain.children.push(currentSection);\nif (currentMain) result.push(currentMain);\n\nmsg.excelData = result;\nreturn msg;",
+        "func": "const xlsx = global.get('xlsx');\nconst workbook = xlsx.read(msg.payload, { type: 'buffer' });\nconst sheetName = workbook.SheetNames[1];\nconst sheet = workbook.Sheets[sheetName];\nconst rawData = xlsx.utils.sheet_to_json(sheet, { defval: '' });\n\nconst result = [];\nlet currentMain = null;\nlet currentSection = null;\nlet currentItem = null;\nlet currentSubItem = null;\n\n// 如果分項本身有單價等資料，但底下沒有細項，要幫它補detail\nfunction fixSectionDetail(section) {\n    if (\n        section &&\n        (!section.children || !section.children.length) &&\n        (section.unit || section.quantity || section.unit_price || section.total)\n    ) {\n        section.children = [{\n            type: 'detail',\n            item: section.item,\n            description: section.description,\n            unit: section.unit,\n            quantity: section.quantity,\n            unit_price: section.unit_price,\n            total: section.total,\n            remark: section.remark\n        }];\n        section.unit = '';\n        section.quantity = '';\n        section.unit_price = '';\n        section.total = '';\n        section.remark = '';\n    }\n}\n\nfor (let row of rawData) {\n    const code = (row[\"OOOO\"] || '').toString().trim();\n    const desc = (row[\"__EMPTY\"] || '').toString().trim();\n\n    // 大項（壹、貳…）\n    if (code.match(/^[壹貳參肆伍陸柒捌玖拾]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        fixSectionDetail(currentSection);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n        if (currentMain) result.push(currentMain);\n\n        currentMain = { type: 'main', item: code, description: desc, children: [] };\n        currentSection = null;\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 分項（一、二…）\n    if (code.match(/^[一二三四五六七八九十]+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n        fixSectionDetail(currentSection);\n        if (currentSection && currentMain) currentMain.children.push(currentSection);\n\n        currentSection = {\n            type: 'section',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentItem = null;\n        currentSubItem = null;\n        continue;\n    }\n\n    // 細項（1、2…）\n    if (code.match(/^\\d+$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n        if (currentItem && currentSection) currentSection.children.push(currentItem);\n\n        currentItem = {\n            type: 'item',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || '',\n            children: []\n        };\n        currentSubItem = null;\n        continue;\n    }\n\n    // 子細項（(1)、(2)…）\n    if (code.match(/^\\(\\d+\\)$/)) {\n        if (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\n\n        currentSubItem = {\n            type: 'subitem',\n            item: code,\n            description: desc,\n            unit: row[\"__EMPTY_1\"] || '',\n            quantity: row[\"__EMPTY_2\"] || '',\n            unit_price: row[\"__EMPTY_3\"] || '',\n            total: row[\"__EMPTY_4\"] || '',\n            remark: row[\"__EMPTY_5\"] || ''\n        };\n        continue;\n    }\n\n    // 補充說明/備註\n    if (currentSubItem) {\n        if (row[\"__EMPTY\"]) currentSubItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentSubItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    } else if (currentItem) {\n        if (row[\"__EMPTY\"]) currentItem.description += row[\"__EMPTY\"].toString().trim();\n        if (row[\"__EMPTY_5\"]) currentItem.remark += row[\"__EMPTY_5\"].toString().trim();\n    }\n}\n\n// 收尾：處理最後一個subitem、item、section、main\nif (currentSubItem && currentItem) currentItem.children.push(currentSubItem);\nif (currentItem && currentSection) currentSection.children.push(currentItem);\nfixSectionDetail(currentSection);\n\n// 一定要記得最後一個 main 也要 push!\nif (currentSection && currentMain) currentMain.children.push(currentSection);\nif (currentMain) result.push(currentMain);\n\nmsg.excelData = result;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -942,7 +942,7 @@
         "finalize": "",
         "libs": [],
         "x": 300,
-        "y": 80,
+        "y": 100,
         "wires": [
             [
                 "0112b44b77f187c3"
@@ -968,7 +968,7 @@
         "templateScope": "local",
         "className": "",
         "x": 160,
-        "y": 80,
+        "y": 100,
         "wires": [
             [
                 "3ad0faa4bf2148dd"
@@ -988,7 +988,7 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 820,
+        "x": 1480,
         "y": 80,
         "wires": []
     },
@@ -1005,11 +1005,10 @@
         "finalize": "",
         "libs": [],
         "x": 460,
-        "y": 80,
+        "y": 100,
         "wires": [
             [
-                "93229f3fce5fe30a",
-                "4dbb1ef5e8aaa2e2"
+                "93229f3fce5fe30a"
             ]
         ]
     },
@@ -1020,10 +1019,11 @@
         "mydb": "0b4c50e32bf6a5fa",
         "name": "",
         "x": 630,
-        "y": 80,
+        "y": 100,
         "wires": [
             [
-                "46da6534a6042da4"
+                "d8f41c57a3e5d4c2",
+                "4dbb1ef5e8aaa2e2"
             ]
         ]
     },
@@ -1040,9 +1040,124 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 620,
-        "y": 120,
+        "x": 780,
+        "y": 140,
         "wires": []
+    },
+    {
+        "id": "d984732aa7ea1fd7",
+        "type": "function",
+        "z": "55d30d31a5f17410",
+        "name": "無版本",
+        "func": "//專案名稱\nvar projectName = msg.projectName;\n//承接公司\nvar contractor = msg.contractor;\n//專案起始日期\nvar startDate = msg.startDate;\n//專案結束日期\nvar endDate = msg.endDate;\n\nmsg.topic = \"INSERT INTO projects (name,contractor,start_date,end_date,version,created_at) VALUES (?,?,?,?,1,NOW());\";\nmsg.payload = [projectName, contractor, startDate, endDate];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 80,
+        "wires": [
+            [
+                "9f720ee00696742c"
+            ]
+        ]
+    },
+    {
+        "id": "d8f41c57a3e5d4c2",
+        "type": "switch",
+        "z": "55d30d31a5f17410",
+        "name": "",
+        "property": "payload[0].max_version",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "null"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 770,
+        "y": 100,
+        "wires": [
+            [
+                "d984732aa7ea1fd7"
+            ],
+            [
+                "2dd76d6fc0d65360"
+            ]
+        ]
+    },
+    {
+        "id": "2dd76d6fc0d65360",
+        "type": "function",
+        "z": "55d30d31a5f17410",
+        "name": "新版本",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9f720ee00696742c",
+        "type": "mysql",
+        "z": "55d30d31a5f17410",
+        "mydb": "0b4c50e32bf6a5fa",
+        "name": "",
+        "x": 1030,
+        "y": 80,
+        "wires": [
+            [
+                "0a058019ad2a1bae"
+            ]
+        ]
+    },
+    {
+        "id": "0a058019ad2a1bae",
+        "type": "function",
+        "z": "55d30d31a5f17410",
+        "name": "存入排序",
+        "func": "var project_id = msg.payload.insertId;\nvar excelData = msg.excelData;\n\nvar sections = [];\nvar sortOrderMap = {\n    main: 1,\n    section: 2,\n    item: 3\n};\n\nfunction isCategory(node) {\n    return (\n        node.type &&\n        node.item &&\n        node.description &&\n        node.unit === undefined && node.quantity === undefined &&\n        node.unit_price === undefined && node.total === undefined && node.remark === undefined\n    ) || (\n        node.type &&\n        node.item &&\n        node.description &&\n        node.unit === '' &&\n        node.quantity === '' &&\n        node.unit_price === '' &&\n        node.total === '' &&\n        node.remark === ''\n    );\n}\n\nfunction traverse(node) {\n    if (!node) return;\n\n    // 處理自己\n    if (isCategory(node)) {\n        var sort_order = sortOrderMap[node.type] || 99;\n        sections.push([project_id, node.description, sort_order, node.item, new Date()]);\n    }\n\n    // 再處理 children\n    if (Array.isArray(node.children)) {\n        node.children.forEach(child => traverse(child));\n    }\n}\n\nif (excelData && excelData.length > 0) {\n    excelData.forEach(main => traverse(main));\n}\n\nif (sections.length === 0) {\n    node.warn(\"沒有符合條件的資料要寫入 category\");\n    return null;\n}\n\nvar sql = \"INSERT INTO category(project_id, name, sort_order, sort_name, created_at) VALUES \";\n\nvar valuesArr = sections.map(row => {\n    // project_id, name, sort_order, sort_name, create_at\n    return \"(\" +\n        row.map((v, idx) => {\n            if (idx === 4) {\n                return \"NOW()\";\n            } else if (typeof v === 'string') {\n                return \"'\" + v.replace(/'/g, \"''\") + \"'\";\n            } else {\n                return v;\n            }\n        }).join(\",\") +\n        \")\";\n});\nsql += valuesArr.join(\",\");\nmsg.topic = sql;\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1180,
+        "y": 80,
+        "wires": [
+            [
+                "5ebf753e64b039aa"
+            ]
+        ]
+    },
+    {
+        "id": "5ebf753e64b039aa",
+        "type": "mysql",
+        "z": "55d30d31a5f17410",
+        "mydb": "0b4c50e32bf6a5fa",
+        "name": "",
+        "x": 1330,
+        "y": 80,
+        "wires": [
+            [
+                "46da6534a6042da4"
+            ]
+        ]
     },
     {
         "id": "ebfcffea5f99d3e9",
